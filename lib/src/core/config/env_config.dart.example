@@ -1,0 +1,38 @@
+// lib/src/core/config/env_config.dart.example
+// Este es un archivo de ejemplo. Copia este archivo como 'env_config.dart'
+// y reemplaza los valores con tus propias API keys.
+
+class EnvConfig {
+  // ============================================
+  // FREE GEOCODING APIs (Nominatim - OpenStreetMap)
+  // ============================================
+  // Nominatim es gratuito, pero requiere un User-Agent
+  static const String nominatimUserAgent = 'PingGo App';
+  static const String nominatimEmail = 'your-email@example.com';
+  
+  // ============================================
+  // FREE TRAFFIC APIs (TomTom Free Tier)
+  // ============================================
+  // Obtén tu API key en: https://developer.tomtom.com/
+  // Plan gratuito: 2,500 requests/día
+  static const String tomtomApiKey = 'YOUR_TOMTOM_API_KEY_HERE';
+  
+  // ============================================
+  // QUOTA MONITORING
+  // ============================================
+  // Límites diarios de TomTom
+  static const int tomtomDailyRequestLimit = 2500;
+  
+  // ============================================
+  // ALERT THRESHOLDS (Porcentajes de alerta)
+  // ============================================
+  static const double warningThreshold = 0.5;  // 50% - Advertencia amarilla
+  static const double dangerThreshold = 0.75;  // 75% - Alerta naranja
+  static const double criticalThreshold = 0.9; // 90% - Alerta roja
+  
+  // ============================================
+  // FEATURE FLAGS
+  // ============================================
+  static const bool enableQuotaMonitoring = true;
+  static const bool showQuotaAlerts = true;
+}
