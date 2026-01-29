@@ -1,7 +1,10 @@
 import 'dart:ui';
 import '../../../../routes/route_names.dart';
 import 'package:flutter/material.dart';
+import 'package:ping_go/src/widgets/auth_wrapper.dart';
 import 'package:ping_go/src/global/services/auth/user_service.dart';
+import 'package:ping_go/src/features/conductor/services/conductor_service.dart';
+import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -695,6 +698,12 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
     return Column(
       children: [
         _buildProfileMenuItem(
+          icon: Icons.drive_eta,
+          title: 'Ser conductor',
+          onTap: _handleBeDriverTap,
+        ),
+        const SizedBox(height: 12),
+        _buildProfileMenuItem(
           icon: Icons.settings,
           title: 'Configuración',
           onTap: () => Navigator.pushNamed(context, '/settings'),
@@ -1145,6 +1154,258 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleBeDriverTap() async {
+    // Mostrar indicador de carga
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(
+        child: CircularProgressIndicator(color: Color(0xFFFFFF00)),
+      ),
+    );
+
+    try {
+      final session = await UserService.getSavedSession();
+      if (session == null || session['id'] == null) {
+        if (mounted) Navigator.pop(context); // Cerrar loader
+        return;
+      }
+
+      final userId = int.parse(session['id'].toString());
+      final result = await ConductorService.getConductorProfile(userId);
+
+      if (!mounted) return;
+      Navigator.pop(context); // Cerrar loader
+
+      if (result['success'] == true && result['data'] != null) {
+        final data = result['data'];
+        final status = data['estado_aprobacion'];
+        final aprobado = data['aprobado'] == 1 || data['aprobado'] == true;
+
+        if (aprobado && status == 'aprobado') {
+          // Ya es conductor aprobado
+          Navigator.pushReplacementNamed(
+            context, 
+            RouteNames.conductorHome,
+            arguments: {'conductor_user': session},
+          );
+        } else if (status == 'pendiente') {
+          _showStatusDialog(
+            title: 'Solicitud en Revisión',
+            description: 'Tu solicitud está siendo procesada por nuestro equipo. Te notificaremos cuando haya una actualización.',
+            icon: Icons.hourglass_top_rounded,
+            color: Colors.orange,
+          );
+        } else if (status == 'rechazado') {
+          final motivo = data['motivo_rechazo'] ?? 'No especificado';
+          _showStatusDialog(
+            title: 'Solicitud Rechazada',
+            description: 'Motivo: $motivo\n\nPuedes corregir tu información y enviar una nueva solicitud.',
+            icon: Icons.cancel_outlined,
+            color: Colors.red,
+            actionLabel: 'Intentar de nuevo',
+            onAction: () {
+              Navigator.pop(context); // Cerrar dialogo actual
+              Navigator.pushNamed(context, RouteNames.conductorRegistration);
+            },
+          );
+        }
+      } else {
+        // No hay solicitud previa o error (asumimos no hay solicitud si data es null)
+        // Ir a registro
+        Navigator.pushNamed(context, RouteNames.conductorRegistration);
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Cerrar loader si hay error
+        CustomSnackbar.showError(context, message: 'Error al verificar estado: $e');
+      }
+    }
+  }
+
+  void _showStatusDialog({
+    required String title,
+    required String description,
+    required IconData icon,
+    required Color color,
+    String? actionLabel,
+    VoidCallback? onAction,
+  }) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A).withOpacity(0.95),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: color.withOpacity(0.3),
+                  width: 1.5,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      icon,
+                      color: color,
+                      size: 40,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 15,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  if (actionLabel != null && onAction != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: onAction,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: color,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: Text(
+                            actionLabel,
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Cerrar',
+                      style: TextStyle(
+                        color: Colors.white60,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showComingSoonDialog(String feature) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A).withOpacity(0.95),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1.5,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFFFF00).withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.access_time_rounded,
+                      color: Color(0xFFFFFF00),
+                      size: 40,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    feature,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Esta función estará disponible próximamente.',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 14,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      backgroundColor: const Color(0xFFFFFF00),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      'Entendido',
+                      style: TextStyle(
+                        color: Colors.black,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

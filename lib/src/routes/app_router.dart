@@ -10,9 +10,11 @@ import 'package:ping_go/src/features/auth/presentation/screens/phone_auth_screen
 import 'package:ping_go/src/features/auth/presentation/screens/email_auth_screen.dart';
 import 'package:ping_go/src/features/auth/presentation/screens/email_verification_screen.dart';
 import 'package:ping_go/src/features/onboarding/presentation/screens/onboarding_screen.dart';
+import '../features/conductor/presentation/screens/conductor_registration_screen.dart';
 import 'package:ping_go/src/features/auth/presentation/screens/welcome_screen.dart';
 import 'package:ping_go/src/features/auth/presentation/screens/splash_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/admin_home_screen.dart';
+import 'package:ping_go/src/features/admin/presentation/screens/pending_drivers_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/users_management_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/statistics_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/audit_logs_screen.dart';
@@ -140,6 +142,24 @@ class AppRouter {
           return MaterialPageRoute(
             builder: (_) => AdminHomeScreen(
               adminUser: args?['admin_user'] ?? {},
+            ),
+          );
+        }
+      case RouteNames.conductorRegistration:
+        {
+          final args = settings.arguments as Map<String, dynamic>?;
+          return MaterialPageRoute(
+            builder: (_) => ConductorRegistrationScreen(
+              userSession: args,
+            ),
+          );
+        }
+      case RouteNames.adminPendingDrivers:
+        {
+          final args = settings.arguments as Map<String, dynamic>?;
+          return MaterialPageRoute(
+            builder: (_) => PendingDriversScreen(
+              adminId: args?['adminId'] ?? 0,
             ),
           );
         }

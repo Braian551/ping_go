@@ -66,12 +66,16 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
                 },
               ),
               _ManagementItem(
-                title: 'Documentos de Conductores',
-                subtitle: 'Función en desarrollo próximamente',
-                icon: Icons.description_rounded,
+                title: 'Solicitudes Pendientes',
+                subtitle: 'Revisar y aprobar nuevos conductores',
+                icon: Icons.checklist_rtl_rounded,
                 accentColor: const Color(0xFFFFFF00),
                 onTap: () {
-                  _showComingSoon();
+                  Navigator.pushNamed(
+                    context,
+                    RouteNames.adminPendingDrivers,
+                    arguments: {'adminId': adminId},
+                  );
                 },
               ),
               _ManagementItem(

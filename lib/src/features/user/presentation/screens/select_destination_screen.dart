@@ -29,7 +29,11 @@ class SelectDestinationScreen extends StatefulWidget {
 }
 
 class _SelectDestinationScreenState extends State<SelectDestinationScreen> {
+  final TextEditingController _originController = TextEditingController();
   final TextEditingController _destinationController = TextEditingController();
+  
+  final FocusNode _originFocus = FocusNode();
+  final FocusNode _destinationFocus = FocusNode();
   
   SimpleLocation? _originLocation;
   SimpleLocation? _destinationLocation;
@@ -43,252 +47,134 @@ class _SelectDestinationScreenState extends State<SelectDestinationScreen> {
   void initState() {
     super.initState();
     _loadCurrentLocation();
-    _destinationController.addListener(_onSearchTextChanged);
+    
+    // Listeners for focus changes to trigger/hide suggestions or clear search
+    _originFocus.addListener(() {
+      if (_originFocus.hasFocus) {
+        setState(() {
+           _showSuggestions = true;
+           // Trigger search immediately if text exists
+           if (_originController.text.isNotEmpty) _onSearchTextChanged();
+        });
+      }
+    });
+    
+    _destinationFocus.addListener(() {
+      if (_destinationFocus.hasFocus) {
+        setState(() {
+           _showSuggestions = true;
+           if (_destinationController.text.isNotEmpty) _onSearchTextChanged();
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
-    _destinationController.removeListener(_onSearchTextChanged);
+    _originController.dispose();
     _destinationController.dispose();
+    _originFocus.dispose();
+    _destinationFocus.dispose();
     super.dispose();
   }
-
+  
+  // Reuse existing methods but adapt
   Future<void> _loadCurrentLocation() async {
     try {
-      // Verificar permisos
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) {
-          throw Exception('Permisos de ubicación denegados');
-        }
-      }
-      
-      // Obtener posición actual
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-      );
-      
-      // Geocodificar usando OSM
-      final place = await OsmService.reverseGeocode(
-        position.latitude,
-        position.longitude,
-      );
-      
-      final address = place?.displayName ?? 'Ubicación actual';
+      Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+      final place = await OsmService.reverseGeocode(position.latitude, position.longitude);
       
       setState(() {
         _currentPosition = position;
         _originLocation = SimpleLocation(
-          latitude: position.latitude,
-          longitude: position.longitude,
-          address: address,
+           latitude: position.latitude,
+           longitude: position.longitude,
+           address: place?.displayName ?? 'Tu ubicación actual'
         );
+        _originController.text = _originLocation!.address;
       });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al obtener ubicación: $e')),
-        );
-      }
+    } catch (_) {
+      // Handle error quietly or set default
     }
   }
 
   void _onSearchTextChanged() {
-    final query = _destinationController.text.trim();
+    final isOrigin = _originFocus.hasFocus;
+    final query = isOrigin ? _originController.text.trim() : _destinationController.text.trim();
     
-    if (query.length >= 1) {
+    if (query.length >= 2) {
       _searchSuggestionsWithDebounce(query);
     } else {
-      setState(() {
-        _searchSuggestions = [];
-        _showSuggestions = false;
-      });
+      setState(() => _searchSuggestions = []);
     }
   }
 
-  void _searchSuggestionsWithDebounce(String query) async {
-    // Cancelar búsqueda anterior si existe
+  Future<void> _searchSuggestionsWithDebounce(String query) async {
     if (_isSearchingDestination) return;
-    
     setState(() => _isSearchingDestination = true);
     
     try {
-      // Pequeño delay para evitar demasiadas búsquedas
-      await Future.delayed(const Duration(milliseconds: 150));
+      await Future.delayed(const Duration(milliseconds: 300)); // Debounce
       
-      if (!mounted || _destinationController.text.trim() != query) return;
-      
+      // Check which field is active to ensure we don't overwrite if user switched fast
+      final activeQuery = _originFocus.hasFocus ? _originController.text.trim() : _destinationController.text.trim();
+      if (activeQuery != query) return;
+
       final results = await OsmService.searchPlaces(
-        query,
-        lat: _currentPosition?.latitude,
+        query, 
+        lat: _currentPosition?.latitude, 
         lon: _currentPosition?.longitude,
-        limit: 5, // Limitar a 5 sugerencias
+        limit: 5
       );
       
-      if (mounted && _destinationController.text.trim() == query) {
+      if (mounted) {
         setState(() {
-          _searchSuggestions = results.map((place) => SimpleLocation(
-            latitude: place.lat,
-            longitude: place.lon,
-            address: place.displayName,
+          _searchSuggestions = results.map((p) => SimpleLocation(
+            latitude: p.lat,
+            longitude: p.lon,
+            address: p.displayName
           )).toList();
-          _showSuggestions = _searchSuggestions.isNotEmpty;
         });
       }
-    } catch (e) {
-      // Silenciar errores de búsqueda en tiempo real
-    } finally {
-      if (mounted) {
-        setState(() => _isSearchingDestination = false);
-      }
-    }
-  }
-
-  Future<void> _searchDestination() async {
-    final query = _destinationController.text.trim();
-    
-    if (query.isEmpty) return;
-    
-    setState(() => _isSearchingDestination = true);
-    
-    try {
-      // Buscar lugares con OSM (Nominatim)
-      final results = await OsmService.searchPlaces(
-        query,
-        lat: _currentPosition?.latitude,
-        lon: _currentPosition?.longitude,
-      );
-      
-      if (results.isEmpty) {
-        throw Exception('No se encontraron resultados');
-      }
-      
-      // Convertir a SimpleLocation
-      final locations = results.map((place) => SimpleLocation(
-        latitude: place.lat,
-        longitude: place.lon,
-        address: place.displayName,
-      )).toList();
-      
-      // Mostrar resultados para que el usuario seleccione
-      if (mounted) {
-        final selected = await showModalBottomSheet<SimpleLocation>(
-          context: context,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (context) => _buildSearchResults(locations),
-        );
-        
-        if (selected != null) {
-          setState(() {
-            _destinationLocation = selected;
-            _destinationController.text = selected.address;
-            _searchSuggestions = [];
-            _showSuggestions = false;
-          });
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        final errorMessage = e.toString().contains('No se encontraron resultados') 
-            ? 'No se encontraron resultados'
-            : 'Error en búsqueda: $e';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
-      }
-    } finally {
-      setState(() => _isSearchingDestination = false);
+    } catch (_) {}
+    finally {
+      if (mounted) setState(() => _isSearchingDestination = false);
     }
   }
 
   void _selectSuggestion(SimpleLocation location) {
     setState(() {
-      _destinationLocation = location;
-      _destinationController.text = location.address;
-      _searchSuggestions = [];
+      if (_originFocus.hasFocus) {
+        _originLocation = location;
+        _originController.text = location.address;
+        _originFocus.unfocus();
+        // Auto focus destination if empty
+        if (_destinationController.text.isEmpty) {
+          _destinationFocus.requestFocus();
+        }
+      } else {
+        _destinationLocation = location;
+        _destinationController.text = location.address;
+        _destinationFocus.unfocus();
+      }
       _showSuggestions = false;
+      _searchSuggestions = [];
     });
-    // Ocultar teclado
-    FocusScope.of(context).unfocus();
   }
 
-  Widget _buildSearchResults(List<SimpleLocation> results) {
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 12),
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey[300],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 20),
-              child: Text(
-                'Selecciona un destino',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Flexible(
-              child: ListView.separated(
-                shrinkWrap: true,
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                itemCount: results.length,
-                separatorBuilder: (context, index) => const Divider(),
-                itemBuilder: (context, index) {
-                  final location = results[index];
-                  return ListTile(
-                    leading: const Icon(Icons.location_on, color: Colors.red),
-                    title: Text(
-                      location.address,
-                      style: const TextStyle(fontWeight: FontWeight.w500),
-                    ),
-                    subtitle: Text(
-                      '${location.latitude.toStringAsFixed(5)}, ${location.longitude.toStringAsFixed(5)}',
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    ),
-                    onTap: () => Navigator.pop(context, location),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
+  void _searchDestination() {
+     // Triggered by "Enter" key
+     // Just hide keyboard if valid
+     FocusScope.of(context).unfocus();
+     setState(() => _showSuggestions = false);
   }
-
+  
   void _continueToPreview() {
     if (_originLocation == null || _destinationLocation == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Por favor selecciona un destino'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
+       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor completa origen y destino')));
+       return;
     }
-    
-    // Usar vehículo por defecto (moto)
     const defaultVehicleType = 'moto';
-    
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -305,142 +191,215 @@ class _SelectDestinationScreenState extends State<SelectDestinationScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.black,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Color(0xFFFFFF00)),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          '¿A dónde vas?',
-          style: TextStyle(color: Color.fromARGB(255, 255, 255, 255), fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: Column(
+      body: Stack(
         children: [
-          // Campo de búsqueda de destino
-          Padding(
-            padding: const EdgeInsets.all(20),
+          // 1. Background Gradient
+          Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFFFFF00), width: 2),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFFF00),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFFFFF00), width: 2),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextField(
-                        controller: _destinationController,
-                        style: const TextStyle(
-                          color: Color(0xFFFFFF00),
-                          fontSize: 16,
-                        ),
-                        decoration: InputDecoration(
-                          hintText: 'Buscar destino en Colombia',
-                          hintStyle: TextStyle(
-                            color: const Color.fromARGB(179, 255, 255, 255),
-                            fontSize: 16,
-                          ),
-                          border: InputBorder.none,
-                          suffixIcon: _isSearchingDestination
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: Padding(
-                                    padding: EdgeInsets.all(12),
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFFF00)),
-                                    ),
-                                  ),
-                                )
-                              : const Icon(Icons.search, size: 20, color: Color(0xFFFFFF00)),
-                        ),
-                        onSubmitted: (_) => _searchDestination(),
-                      ),
-                    ),
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.2),
+                  radius: 1.2,
+                  colors: [
+                    const Color(0xFF1A1A1A),
+                    Colors.black,
                   ],
+                  stops: const [0.0, 1.0],
                 ),
               ),
             ),
           ),
           
-          // Sugerencias de búsqueda
-          if (_showSuggestions && _searchSuggestions.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              constraints: const BoxConstraints(maxHeight: 200),
-              decoration: BoxDecoration(
-                color: Colors.black,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFFFFF00), width: 2),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0x4DFFFF00),
-                    blurRadius: 8,
-                    offset: const Offset(0, 4),
+          SafeArea(
+            child: Column(
+              children: [
+                // Header custom
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Planificar viaje',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                
+                // Route Selector (Origin + Destination)
+                _buildRouteSelector(),
+                
+                // Suggestions List
+                if (_showSuggestions && _searchSuggestions.isNotEmpty)
+                  Expanded(
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF1E1E1E),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: ListView.separated(
+                          padding: EdgeInsets.zero,
+                          itemCount: _searchSuggestions.length,
+                          separatorBuilder: (context, index) => Divider(
+                            color: Colors.white.withOpacity(0.1),
+                            height: 1,
+                          ),
+                          itemBuilder: (context, index) {
+                            final suggestion = _searchSuggestions[index];
+                            return ListTile(
+                              leading: Icon(
+                                Icons.location_on_outlined,
+                                color: _destinationFocus.hasFocus ? const Color(0xFFFFFF00) : Colors.white,
+                              ),
+                              title: Text(
+                                suggestion.address,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onTap: () => _selectSuggestion(suggestion),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  const Expanded(child: SizedBox()),
+                
+                // Continue Button
+                if (_destinationLocation != null && _originLocation != null && !_showSuggestions) 
+                  _buildContinueButton(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRouteSelector() {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.5),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        children: [
+          // Origin Input
+          Row(
+            children: [
+              Column(
+                children: [
+                  Container(
+                    width: 12,
+                    height: 12,
+                    decoration: BoxDecoration(
+                      color: Colors.white, // Origin is usually distinct
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 2),
+                    ),
+                  ),
+                  Container(
+                    width: 2,
+                    height: 24,
+                    color: Colors.white.withOpacity(0.3),
                   ),
                 ],
               ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  padding: EdgeInsets.zero,
-                  itemCount: _searchSuggestions.length,
-                  separatorBuilder: (context, index) => Divider(
-                    color: const Color(0x4DFFFF00),
-                    height: 1,
-                    thickness: 1,
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _originController,
+                  focusNode: _originFocus,
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                  decoration: InputDecoration(
+                    hintText: 'Punto de origen',
+                    hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                    border: InputBorder.none,
+                    suffixIcon: _originController.text.isNotEmpty && _originFocus.hasFocus
+                        ? IconButton(
+                            icon: const Icon(Icons.close, size: 18, color: Colors.grey),
+                            onPressed: () {
+                              _originController.clear();
+                              _onSearchTextChanged();
+                            },
+                          )
+                        : null,
                   ),
-                  itemBuilder: (context, index) {
-                    final suggestion = _searchSuggestions[index];
-                    return Container(
-                      color: Colors.black,
-                      child: ListTile(
-                        dense: true,
-                        leading: const Icon(
-                          Icons.location_on,
-                          color: Color(0xFFFFFF00),
-                          size: 20,
-                        ),
-                        title: Text(
-                          suggestion.address,
-                          style: const TextStyle(
-                            color: Color(0xFFFFFF00),
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () => _selectSuggestion(suggestion),
-                      ),
-                    );
-                  },
+                  onChanged: (_) => _onSearchTextChanged(),
                 ),
               ),
-            ),
+            ],
+          ),
           
-          // Espacio vacío para mantener el layout simple
-          const Expanded(child: SizedBox()),
-          
-          // Botón de continuar (solo si hay destino seleccionado)
-          if (_destinationLocation != null) _buildContinueButton(),
+          // Destination Input
+          Row(
+            children: [
+              Container(
+                width: 12,
+                height: 12,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFFF00),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _destinationFocus.hasFocus ? Colors.white.withOpacity(0.1) : Colors.transparent,
+                    borderRadius: BorderRadius.circular(8),
+                    border: _destinationFocus.hasFocus 
+                        ? Border.all(color: const Color(0xFFFFFF00), width: 1)
+                        : Border.all(color: Colors.transparent),
+                  ),
+                  child: TextField(
+                    controller: _destinationController,
+                    focusNode: _destinationFocus,
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
+                    decoration: InputDecoration(
+                      hintText: '¿A dónde vas?',
+                      hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+                      border: InputBorder.none,
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                      suffixIcon: _isSearchingDestination && _destinationFocus.hasFocus
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFFFF00)),
+                            )
+                          : null,
+                    ),
+                    onChanged: (_) => _onSearchTextChanged(),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -448,34 +407,26 @@ class _SelectDestinationScreenState extends State<SelectDestinationScreen> {
 
   Widget _buildContinueButton() {
     return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.black,
-        border: Border(
-          top: BorderSide(color: const Color(0x4DFFFF00), width: 1),
-        ),
-      ),
-      child: SafeArea(
-        child: SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton(
-            onPressed: _continueToPreview,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFFFFF00),
-              foregroundColor: Colors.black,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-              elevation: 0,
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      child: SizedBox(
+        height: 56,
+        child: ElevatedButton(
+          onPressed: _continueToPreview,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFFFFF00),
+            foregroundColor: Colors.black,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
-            child: const Text(
-              'Ver en mapa',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
+          ),
+          child: const Text(
+            'Ver en mapa',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Colors.black,
             ),
           ),
         ),
@@ -483,3 +434,5 @@ class _SelectDestinationScreenState extends State<SelectDestinationScreen> {
     );
   }
 }
+
+

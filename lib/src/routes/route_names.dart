@@ -13,6 +13,9 @@ class RouteNames {
   static const String trackingTrip = '/tracking_trip';
   static const String userProfile = '/user_profile';
   static const String editProfile = '/edit_profile';
+  static const String conductorProfile = '/conductor-profile';
+  static const String conductorHistory = '/conductor-history';
+  static const String conductorRegistration = '/conductor-registration';
   static const String paymentMethods = '/payment_methods';
   static const String tripHistory = '/trip_history';
   static const String favoritePlaces = '/favorite_places';
@@ -29,6 +32,7 @@ class RouteNames {
   static const String adminStatistics = '/admin/statistics';
   static const String adminAuditLogs = '/admin/audit-logs';
   static const String adminConductorDocs = '/admin/conductor-docs';
+  static const String adminPendingDrivers = '/admin/pending-drivers';
   
   // Rutas de conductor
   static const String conductorHome = '/conductor/home';

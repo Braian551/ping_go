@@ -68,7 +68,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           
           // Redirigir a login después de mostrar el mensaje
           await Future.delayed(const Duration(seconds: 2));
-          Navigator.pushReplacementNamed(context, RouteNames.login);
+          Navigator.pushNamedAndRemoveUntil(context, RouteNames.login, (route) => false);
           return;
         }
         
@@ -108,9 +108,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
         await Future.delayed(const Duration(milliseconds: 1500));
         
         // Navegar al home directamente
-        Navigator.pushReplacementNamed(
+        Navigator.pushNamedAndRemoveUntil(
           context, 
           RouteNames.home,
+          (route) => false,
           arguments: {'email': widget.email},
         );
       } catch (e) {
@@ -131,7 +132,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           );
           await Future.delayed(const Duration(milliseconds: 1500));
-          Navigator.pushReplacementNamed(context, RouteNames.home, arguments: {'email': widget.email});
+          Navigator.pushNamedAndRemoveUntil(context, RouteNames.home, (route) => false, arguments: {'email': widget.email});
           return;
         }
         
@@ -151,33 +152,61 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF0A0A0A),
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: Column(
+      backgroundColor: Colors.black,
+      body: Stack(
         children: [
-          // Encabezado simple de pasos
-          _buildSimpleStepperHeader(),
-
-          // Contenido del formulario
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: _buildStepContent(),
+          // 1. Background Gradient
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: RadialGradient(
+                  center: const Alignment(0, -0.2),
+                  radius: 1.2,
+                  colors: [
+                    const Color(0xFF1A1A1A),
+                    Colors.black,
+                  ],
+                  stops: const [0.0, 1.0],
+                ),
               ),
             ),
           ),
+          
+          SafeArea(
+            child: Column(
+              children: [
+                // AppBar custom
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                ),
 
-          // Botones inferiores simples
-          _buildSimpleBottomButtons(),
+                // Encabezado simple de pasos
+                _buildSimpleStepperHeader(),
+
+                // Contenido del formulario
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Form(
+                      key: _formKey,
+                      child: _buildStepContent(),
+                    ),
+                  ),
+                ),
+
+                // Botones inferiores
+                _buildSimpleBottomButtons(),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -199,53 +228,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildSimpleStepperHeader() {
     final titles = ['Personal', 'Contacto', 'Seguridad'];
     return Container(
-      padding: const EdgeInsets.only(top: 60, left: 24, right: 24, bottom: 24),
+      width: double.infinity,
+      padding: const EdgeInsets.only(top: 20, left: 24, right: 24, bottom: 20),
       child: Column(
         children: [
-          // Título simple del paso
+          // Título del paso
           Text(
             titles[_currentStep],
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 24,
+              fontSize: 32,
               fontWeight: FontWeight.bold,
+              letterSpacing: -0.5,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Text(
             _getStepDescription(_currentStep),
             style: TextStyle(
               color: Colors.white.withOpacity(0.7),
-              fontSize: 14,
+              fontSize: 16,
+              height: 1.4,
             ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 24),
+          
+          const SizedBox(height: 32),
 
-          // Indicador de progreso simple
-          LinearProgressIndicator(
-            value: (_currentStep + 1) / titles.length,
-            backgroundColor: Colors.white.withOpacity(0.2),
-            valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFFFF00)),
-          ),
-          const SizedBox(height: 16),
-
-          // Indicadores simples de pasos
+          // Indicadores de pasos (Dots ONLY)
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(titles.length, (i) {
               final isActive = i == _currentStep;
               final isPassed = i < _currentStep;
 
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 8),
-                width: 12,
-                height: 12,
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                margin: const EdgeInsets.symmetric(horizontal: 6),
+                width: isActive ? 24 : 10, // Active dot is a bit wider (pill shape)
+                height: 10,
                 decoration: BoxDecoration(
                   color: isActive || isPassed
                       ? const Color(0xFFFFFF00)
-                      : Colors.white.withOpacity(0.3),
-                  shape: BoxShape.circle,
+                      : Colors.white.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(5),
                 ),
               );
             }),
@@ -271,13 +297,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildSimpleBottomButtons() {
     return Container(
       padding: const EdgeInsets.all(24),
-      child: SafeArea(
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            // Botón de regresar
-            if (_currentStep > 0)
-              Expanded(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          // Botón de regresar
+          if (_currentStep > 0)
+            Expanded(
+              child: SizedBox(
+                height: 56,
                 child: OutlinedButton(
                   onPressed: () {
                     setState(() {
@@ -285,24 +312,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     });
                   },
                   style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Colors.white, width: 1),
+                    side: BorderSide(color: Colors.white.withOpacity(0.3), width: 1.5),
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: const Text('Atrás'),
+                  child: const Text(
+                    'Atrás',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
                 ),
-              )
-            else
-              const SizedBox(width: 0),
+              ),
+            )
+          else
+            const SizedBox(width: 0),
 
-            if (_currentStep > 0) const SizedBox(width: 16),
+          if (_currentStep > 0) const SizedBox(width: 16),
 
-            // Botón de siguiente/registrar
-            Expanded(
-              flex: _currentStep > 0 ? 1 : 2,
+          // Botón de siguiente/registrar
+          Expanded(
+            flex: _currentStep > 0 ? 1 : 2,
+            child: SizedBox(
+              height: 56,
               child: ElevatedButton(
                 onPressed: _isLoading ? null : () {
                   if (_currentStep < 2) {
@@ -336,27 +368,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFFFFFF00),
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                 ),
-                child: _currentStep < 2
-                    ? const Text('Siguiente')
-                    : _isLoading
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CircularProgressIndicator(
-                              color: Colors.black,
-                              strokeWidth: 2,
-                            ),
-                          )
-                        : const Text('Crear Cuenta'),
+                child: _isLoading 
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(color: Colors.black, strokeWidth: 2),
+                      )
+                    : Text(
+                        _currentStep < 2 ? 'Siguiente' : 'Crear Cuenta',
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -364,7 +397,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildPersonalInfoStep() {
     return Column(
       children: [
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         _buildSimpleTextField(
           controller: _nameController,
           label: 'Nombre',
@@ -376,7 +409,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             return null;
           },
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
         _buildSimpleTextField(
           controller: _lastNameController,
           label: 'Apellido',
@@ -388,7 +421,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             return null;
           },
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 32),
       ],
     );
   }
@@ -413,28 +446,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
       decoration: InputDecoration(
         labelText: label,
         labelStyle: TextStyle(
-          color: Colors.white.withOpacity(0.7),
+          color: Colors.white.withOpacity(0.5),
+          fontSize: 14,
+        ),
+        floatingLabelStyle: const TextStyle(
+          color: Color(0xFFFFFF00),
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
         ),
         prefixIcon: Icon(
           icon,
-          color: const Color(0xFFFFFF00),
+          color: const Color(0xFFFFFF00).withOpacity(0.8),
+          size: 22,
         ),
         suffixIcon: suffixIcon,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: Colors.white, width: 1),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.5), width: 1),
+          borderRadius: BorderRadius.circular(16),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.1), width: 1.5),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(16),
           borderSide: const BorderSide(color: Color(0xFFFFFF00), width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
         ),
         filled: true,
         fillColor: Colors.white.withOpacity(0.05),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       ),
       validator: validator,
     );
@@ -443,7 +487,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildContactStep() {
     return Column(
       children: [
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         _buildSimpleTextField(
           controller: _phoneController,
           label: 'Teléfono',
@@ -459,7 +503,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             return null;
           },
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
       ],
     );
   }
@@ -467,7 +511,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildSecurityStep() {
     return Column(
       children: [
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         _buildSimpleTextField(
           controller: _passwordController,
           label: 'Contraseña',
@@ -476,7 +520,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           suffixIcon: IconButton(
             icon: Icon(
               _obscurePassword ? Icons.visibility_rounded : Icons.visibility_off_rounded,
-              color: Colors.white.withOpacity(0.6),
+              color: Colors.white.withOpacity(0.4),
             ),
             onPressed: () {
               setState(() {
@@ -494,7 +538,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
             return null;
           },
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 20),
         _buildSimpleTextField(
           controller: _confirmPasswordController,
           label: 'Confirmar contraseña',
@@ -503,7 +547,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           suffixIcon: IconButton(
             icon: Icon(
               _obscureConfirmPassword ? Icons.visibility_rounded : Icons.visibility_off_rounded,
-              color: Colors.white.withOpacity(0.6),
+              color: Colors.white.withOpacity(0.4),
             ),
             onPressed: () {
               setState(() {

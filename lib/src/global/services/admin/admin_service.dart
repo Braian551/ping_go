@@ -340,4 +340,78 @@ class AdminService {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  /// Obtener conductores pendientes de aprobación
+  static Future<Map<String, dynamic>> getPendingConductors() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/get_pending_conductors.php'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error en getPendingConductors: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Aprobar conductor
+  static Future<Map<String, dynamic>> approveConductor({
+    required int conductorId,
+    required int adminId,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/approve_conductor.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'conductor_id': conductorId,
+          'admin_id': adminId,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error en approveConductor: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Rechazar conductor
+  static Future<Map<String, dynamic>> rejectConductor({
+    required int conductorId,
+    required String motivo,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/reject_conductor.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'conductor_id': conductorId,
+          'motivo': motivo, 
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error en rejectConductor: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }

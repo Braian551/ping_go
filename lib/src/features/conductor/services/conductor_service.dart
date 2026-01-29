@@ -229,4 +229,79 @@ class ConductorService {
       return {'success': false, 'ganancias': {}};
     }
   }
+
+  /// Enviar solicitud de verificación de conductor
+  static Future<Map<String, dynamic>> submitVerification({
+    required int usuarioId,
+    required String numeroLicencia,
+    required String vencimientoLicencia,
+    required String tipoVehiculo,
+    required String placaVehiculo,
+    String? marcaVehiculo,
+    String? modeloVehiculo,
+    String? anoVehiculo,
+    String? colorVehiculo,
+  }) async {
+    try {
+      final body = {
+        'usuario_id': usuarioId,
+        'numero_licencia': numeroLicencia,
+        'vencimiento_licencia': vencimientoLicencia,
+        'tipo_vehiculo': tipoVehiculo,
+        'placa_vehiculo': placaVehiculo,
+        if (marcaVehiculo != null) 'marca_vehiculo': marcaVehiculo,
+        if (modeloVehiculo != null) 'modelo_vehiculo': modeloVehiculo,
+        if (anoVehiculo != null) 'ano_vehiculo': anoVehiculo,
+        if (colorVehiculo != null) 'color_vehiculo': colorVehiculo,
+      };
+
+      print('Enviando solicitud de conductor: $body');
+
+      final response = await http.post(
+        Uri.parse('$baseUrl/submit_verification.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+      
+      print('Respuesta submitVerification (${response.statusCode}): ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+         try {
+           final errorData = jsonDecode(response.body);
+           return {'success': false, 'message': errorData['message'] ?? 'Error del servidor'};
+         } catch (_) {
+           return {'success': false, 'message': 'Error ${response.statusCode}'};
+         }
+      }
+    } catch (e) {
+      print('Error enviando verificación: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Obtener perfil de conductor (estado de solicitud)
+  static Future<Map<String, dynamic>> getConductorProfile(int usuarioId) async {
+    try {
+      print('Consultando perfil conductor para usuario: $usuarioId');
+      final response = await http.get(
+        Uri.parse('$baseUrl/get_profile.php?usuario_id=$usuarioId'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      print('Respuesta getConductorProfile (${response.statusCode}): ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error obteniendo perfil conductor: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }
