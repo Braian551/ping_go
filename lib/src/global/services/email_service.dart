@@ -18,7 +18,7 @@ class EmailService {
   /// Genera un código de verificación de 6 dígitos
   static String generateVerificationCode() {
     final random = Random();
-    return (100000 + random.nextInt(900000)).toString();
+    return (1000 + random.nextInt(9000)).toString();
   }
 
   /// Envía un código de verificación por correo usando el backend PHP
