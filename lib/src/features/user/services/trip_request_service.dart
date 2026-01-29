@@ -235,4 +235,39 @@ class TripRequestService {
       };
     }
   }
+
+  /// Asignar conductor a una solicitud
+  static Future<Map<String, dynamic>> assignDriver({
+    required int solicitudId,
+    required int conductorId,
+    bool autoAccept = false,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/user/assign_driver.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'solicitud_id': solicitudId,
+          'conductor_id': conductorId,
+          'auto_accept': autoAccept,
+        }),
+      ).timeout(const Duration(seconds: 10), onTimeout: () {
+        throw Exception('Tiempo de espera agotado. Verifica tu conexión.');
+      });
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return data;
+        } else {
+          throw Exception(data['message'] ?? 'Error al asignar conductor');
+        }
+      } else {
+        throw Exception('Error del servidor: ${response.statusCode}');
+      }
+    } catch (e) {
+      print('❌ Error assignDriver: $e');
+      rethrow;
+    }
+  }
 }

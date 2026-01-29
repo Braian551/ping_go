@@ -135,6 +135,7 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                       },
                     ),
                     
+                    /*
                     const SizedBox(height: 14),
                     
                     // Iniciar con Apple
@@ -171,7 +172,10 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                     ),
                     
                     const SizedBox(height: 14),
+                    */
                     
+                    const SizedBox(height: 14),
+
                     // Iniciar con correo
                     _buildSocialButton(
                       icon: const Icon(

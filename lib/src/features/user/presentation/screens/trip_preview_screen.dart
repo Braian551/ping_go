@@ -5,6 +5,7 @@ import '../../../../global/services/osm_service.dart';
 import '../../../../global/services/auth/user_service.dart';
 import '../../services/trip_request_service.dart';
 import 'select_destination_screen.dart';
+import 'trip_status_screen.dart';
 
 /// Modelo para cotización del viaje
 class TripQuote {
@@ -33,6 +34,9 @@ class TripQuote {
   String get formattedTotal => '\$${totalPrice.toStringAsFixed(0)}';
   String get formattedDistance => '${distanceKm.toStringAsFixed(1)} km';
   String get formattedDuration => '$durationMinutes min';
+
+  @override
+  State<TripPreviewScreen> createState() => _TripPreviewScreenState();
 }
 
 /// Pantalla simplificada de preview del viaje
@@ -744,53 +748,111 @@ class _TripPreviewScreenState extends State<TripPreviewScreen> {
 
       if (response['success'] == true) {
         final conductoresEncontrados = response['conductores_encontrados'] ?? 0;
+        final conductores = List<Map<String, dynamic>>.from(response['conductores'] ?? []);
 
-        // Mostrar mensaje de "próximamente disponible" en lugar de navegar
-        if (mounted) {
-          showDialog(
-            context: context,
-            barrierDismissible: false,
-            builder: (BuildContext context) {
-              return AlertDialog(
-                backgroundColor: Colors.black,
-                title: const Text(
-                  'Funcionalidad en desarrollo',
-                  style: TextStyle(color: Color(0xFFFFFF00), fontWeight: FontWeight.bold),
-                ),
-                content: const Text(
-                  'La búsqueda de conductores estará disponible próximamente.',
-                  style: TextStyle(color: Colors.white),
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(); // Cerrar diálogo
-                      Navigator.of(context).pop(); // Volver a la pantalla anterior
-                    },
-                    child: const Text(
-                      'Aceptar',
-                      style: TextStyle(color: Color(0xFFFFFF00)),
+        if (conductoresEncontrados > 0 && conductores.isNotEmpty) {
+          // Seleccionar primer conductor y asignarlo (intentaremos cada conductor si falla)
+
+          // Mostrar notificación y asignar
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Conductor encontrado, asignando...'), backgroundColor: Colors.blue),
+            );
+          }
+
+          // Si hay varios conductores, permitir al usuario elegir, sino asignar automáticamente
+          int? selectedDriverId;
+          if (conductores.length > 1) {
+            // Mostrar selección de conductores
+            final selected = await showModalBottomSheet<Map<String, dynamic>>(
+              context: context,
+              backgroundColor: Colors.transparent,
+              builder: (context) {
+                return Container(
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+                  child: SafeArea(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(height: 12),
+                        const Text('Selecciona un conductor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                        const SizedBox(height: 12),
+                        Flexible(
+                          child: ListView.separated(
+                            shrinkWrap: true,
+                            itemCount: conductores.length,
+                            separatorBuilder: (context, index) => Divider(),
+                            itemBuilder: (context, index) {
+                              final d = conductores[index];
+                              // final idv = int.tryParse(d['id'].toString()) ?? (d['id'] is int ? d['id'] : 0);
+                              return ListTile(
+                                leading: CircleAvatar(backgroundImage: d['foto_perfil'] != null ? NetworkImage(d['foto_perfil']) : null),
+                                title: Text('${d['nombre']} ${d['apellido']}'),
+                                subtitle: Text('${d['distancia_km'] ?? '-'} km'),
+                                onTap: () {
+                                  Navigator.pop(context, d);
+                                },
+                              );
+                            },
+                          ),
+                        )
+                      ],
                     ),
                   ),
-                ],
-              );
-            },
-          );
-        }
+                );
+              },
+            );
+            if (selected != null) {
+              selectedDriverId = int.tryParse(selected['id'].toString()) ?? (selected['id'] is int ? selected['id'] : 0);
+            }
+          }
 
-        // Mostrar mensaje informativo
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                conductoresEncontrados > 0
-                    ? 'Buscando entre $conductoresEncontrados ${conductoresEncontrados == 1 ? "conductor disponible" : "conductores disponibles"}'
-                    : 'Buscando conductores disponibles...',
-              ),
-              backgroundColor: Colors.green,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          // Intentar asignar hasta que encontremos un conductor disponible o se acaben las opciones
+          bool assigned = false;
+          final solicitudId = int.tryParse(response['solicitud_id'].toString()) ?? 0;
+          for (var c in conductores) {
+            final id = int.tryParse(c['id'].toString()) ?? (c['id'] is int ? c['id'] : 0);
+            if (selectedDriverId != null && id != selectedDriverId) continue; // si el usuario seleccionó uno, intentar solo ese
+            try {
+              final assignRes = await TripRequestService.assignDriver(
+                solicitudId: solicitudId,
+                conductorId: id,
+                autoAccept: true,
+              );
+              if (assignRes['success'] == true) {
+                assigned = true;
+                if (mounted) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => TripStatusScreen(
+                        solicitudId: solicitudId,
+                        origin: widget.origin,
+                        destination: widget.destination,
+                      ),
+                    ),
+                  );
+                }
+                break;
+              }
+            } catch (e) {
+              continue; // intentar con siguiente conductor
+            }
+          }
+
+          if (!assigned) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No se pudo asignar un conductor. Intenta nuevamente.'), backgroundColor: Colors.red),
+              );
+            }
+          }
+        } else {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Buscando conductores disponibles...'), backgroundColor: Colors.green),
+            );
+          }
         }
       }
     } catch (e) {

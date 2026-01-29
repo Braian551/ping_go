@@ -1,3 +1,5 @@
+import '../../global/config/api_config.dart';
+
 class AppConfig {
   static const Environment environment = Environment.development;
 
@@ -5,7 +7,7 @@ class AppConfig {
   static String get baseUrl {
     switch (environment) {
       case Environment.development:
-        return 'http://10.0.2.2/ping_go/backend-deploy';
+        return ApiConfig.baseUrl;
       case Environment.staging:
         return 'https://staging-api.pingo.com';
       case Environment.production:

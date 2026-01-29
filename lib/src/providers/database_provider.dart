@@ -15,10 +15,9 @@ class DatabaseProvider with ChangeNotifier {
     try {
       // Verificar conexión con el backend de Railway
       // Try several candidate endpoints to help when backend path differs
+      // ApiConfig.baseUrl ya incluye /ping_go/backend-deploy
       final candidates = <String>[
-        ApiConfig.verifySystemUrl,
-        '${ApiConfig.baseUrl}/backend-deploy/verify_system_json.php',
-        'http://10.0.2.2/ping_go/verify_system_json.php',
+        ApiConfig.verifySystemUrl, // http://10.0.2.2/ping_go/backend-deploy/verify_system_json.php
         'http://10.0.2.2/ping_go/backend-deploy/verify_system_json.php',
         'http://localhost/ping_go/backend-deploy/verify_system_json.php',
         'http://127.0.0.1/ping_go/backend-deploy/verify_system_json.php',
