@@ -270,4 +270,25 @@ class TripRequestService {
       rethrow;
     }
   }
+
+  /// Obtener tarifas públicas de vehículos
+  static Future<List<Map<String, dynamic>>> getPublicRates() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/trips/get_public_rates.php'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return List<Map<String, dynamic>>.from(data['data'] ?? []);
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error obteniendo tarifas: $e');
+      return [];
+    }
+  }
 }

@@ -1,49 +1,39 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:ui';
+import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:intl/intl.dart';
 import '../../../../global/services/osm_service.dart';
 import '../../../../global/services/auth/user_service.dart';
 import '../../services/trip_request_service.dart';
 import 'select_destination_screen.dart';
 import 'trip_status_screen.dart';
+import 'pick_meeting_point_screen.dart';
+import 'searching_driver_screen.dart';
 
-/// Modelo para cotización del viaje
-class TripQuote {
+/// Modelo optimizado para cotización
+class VehicleQuote {
+  final String vehicleType;
+  final double price;
   final double distanceKm;
   final int durationMinutes;
-  final double basePrice;
-  final double distancePrice;
-  final double timePrice;
-  final double surchargePrice;
-  final double totalPrice;
-  final String periodType;
-  final double surchargePercentage;
+  final Map<String, dynamic> rawRate;
 
-  TripQuote({
+  VehicleQuote({
+    required this.vehicleType,
+    required this.price,
     required this.distanceKm,
     required this.durationMinutes,
-    required this.basePrice,
-    required this.distancePrice,
-    required this.timePrice,
-    required this.surchargePrice,
-    required this.totalPrice,
-    required this.periodType,
-    required this.surchargePercentage,
+    required this.rawRate,
   });
 
-  String get formattedTotal => '\$${totalPrice.toStringAsFixed(0)}';
-  String get formattedDistance => '${distanceKm.toStringAsFixed(1)} km';
-  String get formattedDuration => '$durationMinutes min';
-
-  @override
-  State<TripPreviewScreen> createState() => _TripPreviewScreenState();
+  String get formattedPrice => '\$${NumberFormat("#,##0", "es_CO").format(price)}';
 }
 
-/// Pantalla simplificada de preview del viaje
 class TripPreviewScreen extends StatefulWidget {
   final SimpleLocation origin;
   final SimpleLocation destination;
-  final String vehicleType;
+  final String vehicleType; // Pre-selección (opcional)
 
   const TripPreviewScreen({
     super.key,
@@ -58,635 +48,509 @@ class TripPreviewScreen extends StatefulWidget {
 
 class _TripPreviewScreenState extends State<TripPreviewScreen> {
   final MapController _mapController = MapController();
-
+  
+  // Estado
   OsmRoute? _route;
-  TripQuote? _quote;
+  List<VehicleQuote> _quotes = [];
   bool _isLoading = true;
   String? _errorMessage;
   late String _selectedVehicleType;
+  
+  // Tarifas crudas desde DB
+  List<Map<String, dynamic>> _rates = [];
 
   @override
   void initState() {
     super.initState();
     _selectedVehicleType = widget.vehicleType;
-    _loadRouteAndQuote();
+    _initializeData();
   }
 
-  Future<void> _loadRouteAndQuote() async {
+  Future<void> _initializeData() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      // Obtener ruta usando OSM
-      final route = await OsmService.getRoute([
-        widget.origin.toLatLng(),
-        widget.destination.toLatLng(),
+      // 1. Cargar tarifas y ruta en paralelo
+      final futures = await Future.wait([
+        TripRequestService.getPublicRates(),
+        OsmService.getRoute([
+          widget.origin.toLatLng(),
+          widget.destination.toLatLng(),
+        ]),
       ]);
 
-      if (route == null) {
-        throw Exception('No se pudo calcular la ruta');
-      }
+      final rates = futures[0] as List<Map<String, dynamic>>;
+      final route = futures[1] as OsmRoute?;
 
-      setState(() {
-        _route = route;
-        _isLoading = false;
-      });
+      if (rates.isEmpty) throw Exception('No se pudieron cargar las tarifas.');
+      if (route == null) throw Exception('No se pudo trazar la ruta.');
 
-      // Ajustar el mapa para mostrar la ruta completa
-      _fitMapToRoute();
+      _rates = rates;
+      _route = route;
+      
+      // 2. Calcular cotizaciones para todos los vehículos disponibles
+      _calculateAllQuotes();
 
-      // Calcular cotización
-      final quote = _calculateQuote(route);
-      setState(() {
-        _quote = quote;
+      // 3. Ajustar mapa
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _fitMapToRoute();
       });
 
     } catch (e) {
-      setState(() {
-        _errorMessage = e.toString();
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() => _errorMessage = e.toString());
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
+  }
+
+  void _calculateAllQuotes() {
+    if (_route == null) return;
+
+    final distanceKm = _route!.distanceKm;
+    
+    // Calculamos duración con un factor de tráfico muy simple (+20%)
+    final durationMin = (_route!.durationMinutes * 1.2).ceil();
+    
+    final quotes = <VehicleQuote>[];
+
+    // Hora actual para recargos
+    final hour = DateTime.now().hour;
+    bool isPeak = (hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19);
+    bool isNight = (hour >= 22 || hour <= 6);
+
+    for (var rate in _rates) {
+      final type = rate['tipo_vehiculo'].toString();
+      final base = double.tryParse(rate['tarifa_base'].toString()) ?? 0;
+      final perKm = double.tryParse(rate['tarifa_km'].toString()) ?? 0;
+      final perMin = double.tryParse(rate['tarifa_min'].toString()) ?? 0;
+      // Comision no se usa para el precio del cliente, solo interno
+      
+      // Recargos hardcoded por ahora, o podrían venir de DB si se agregan a la tabla tarifas
+      double surchargePercent = 0.0;
+      if (isPeak) surchargePercent = 0.15; // 15%
+      if (isNight) surchargePercent = 0.20; // 20%
+
+      double price = base + (distanceKm * perKm) + (durationMin * perMin);
+      
+      // Aplicar recargo
+      price += (price * surchargePercent);
+
+      // Redondear a la centena más cercana (ej: 12340 -> 12300 o 12400) para precios "limpios" en COP
+      price = (price / 100).round() * 100.0;
+
+      quotes.add(VehicleQuote(
+        vehicleType: type,
+        price: price,
+        distanceKm: distanceKm,
+        durationMinutes: durationMin,
+        rawRate: rate,
+      ));
+    }
+
+    setState(() {
+      _quotes = quotes;
+      // Si el tipo seleccionado no existe en las nuevas quotes, seleccionar el primero
+      if (!_quotes.any((q) => q.vehicleType == _selectedVehicleType) && _quotes.isNotEmpty) {
+        _selectedVehicleType = _quotes.first.vehicleType;
+      }
+    });
   }
 
   Future<void> _fitMapToRoute() async {
-    if (_route == null) return;
-
-    double minLat = double.infinity;
-    double maxLat = double.negativeInfinity;
-    double minLng = double.infinity;
-    double maxLng = double.negativeInfinity;
-
-    for (var point in _route!.geometry) {
-      if (point.latitude < minLat) minLat = point.latitude;
-      if (point.latitude > maxLat) maxLat = point.latitude;
-      if (point.longitude < minLng) minLng = point.longitude;
-      if (point.longitude > maxLng) maxLng = point.longitude;
+    if (_route == null || _mapController.camera.zoom == 0) return; // Wait for map ready
+    
+    // Calcular bounds manualmente
+    double minLat = 90.0, maxLat = -90.0, minLng = 180.0, maxLng = -180.0;
+    
+    // Incluir origen y destino
+    final points = [..._route!.geometry, widget.origin.toLatLng(), widget.destination.toLatLng()];
+    
+    for (var p in points) {
+      if (p.latitude < minLat) minLat = p.latitude;
+      if (p.latitude > maxLat) maxLat = p.latitude;
+      if (p.longitude < minLng) minLng = p.longitude;
+      if (p.longitude > maxLng) maxLng = p.longitude;
     }
 
-    final bounds = LatLngBounds(
-      LatLng(minLat, minLng),
-      LatLng(maxLat, maxLng),
-    );
-
-    final camera = CameraFit.bounds(
-      bounds: bounds,
-      padding: const EdgeInsets.only(
-        top: 100,
-        bottom: 300,
-        left: 50,
-        right: 50,
-      ),
-    );
-
-    _mapController.fitCamera(camera);
-  }
-
-  TripQuote _calculateQuote(OsmRoute route) {
-    final hour = DateTime.now().hour;
-    final distanceKm = route.distanceKm;
-    final durationMinutes = route.durationMinutes.ceil();
-
-    final config = _getVehicleConfig(_selectedVehicleType);
-
-    final basePrice = config['tarifa_base']!;
-    final distancePrice = distanceKm * config['costo_por_km']!;
-    final timePrice = durationMinutes * config['costo_por_minuto']!;
-
-    String periodType = 'normal';
-    double surchargePercentage = 0.0;
-
-    if ((hour >= 7 && hour <= 9) || (hour >= 17 && hour <= 19)) {
-      periodType = 'hora_pico';
-      surchargePercentage = config['recargo_hora_pico']!;
-    } else if (hour >= 22 || hour <= 6) {
-      periodType = 'nocturno';
-      surchargePercentage = config['recargo_nocturno']!;
-    }
-
-    final subtotal = basePrice + distancePrice + timePrice;
-    final surchargePrice = subtotal * (surchargePercentage / 100);
-    final total = subtotal + surchargePrice;
-    final finalTotal = total < config['tarifa_minima']! ? config['tarifa_minima']! : total;
-
-    return TripQuote(
-      distanceKm: distanceKm,
-      durationMinutes: durationMinutes,
-      basePrice: basePrice,
-      distancePrice: distancePrice,
-      timePrice: timePrice,
-      surchargePrice: surchargePrice,
-      totalPrice: finalTotal,
-      periodType: periodType,
-      surchargePercentage: surchargePercentage,
-    );
-  }
-
-  Map<String, double> _getVehicleConfig(String vehicleType) {
-    switch (vehicleType) {
-      case 'moto':
-        return {
-          'tarifa_base': 4000.0,
-          'costo_por_km': 2000.0,
-          'costo_por_minuto': 250.0,
-          'tarifa_minima': 6000.0,
-          'recargo_hora_pico': 15.0,
-          'recargo_nocturno': 20.0,
-        };
-      case 'carro':
-        return {
-          'tarifa_base': 6000.0,
-          'costo_por_km': 3000.0,
-          'costo_por_minuto': 400.0,
-          'tarifa_minima': 9000.0,
-          'recargo_hora_pico': 20.0,
-          'recargo_nocturno': 25.0,
-        };
-      case 'moto_carga':
-        return {
-          'tarifa_base': 5000.0,
-          'costo_por_km': 2500.0,
-          'costo_por_minuto': 300.0,
-          'tarifa_minima': 7500.0,
-          'recargo_hora_pico': 15.0,
-          'recargo_nocturno': 20.0,
-        };
-      case 'carro_carga':
-        return {
-          'tarifa_base': 8000.0,
-          'costo_por_km': 3500.0,
-          'costo_por_minuto': 450.0,
-          'tarifa_minima': 12000.0,
-          'recargo_hora_pico': 20.0,
-          'recargo_nocturno': 25.0,
-        };
-      default:
-        return {
-          'tarifa_base': 4000.0,
-          'costo_por_km': 2000.0,
-          'costo_por_minuto': 250.0,
-          'tarifa_minima': 6000.0,
-          'recargo_hora_pico': 15.0,
-          'recargo_nocturno': 20.0,
-        };
-    }
-  }
-
-  String _getVehicleName(String type) {
-    switch (type) {
-      case 'moto': return 'Moto';
-      case 'carro': return 'Carro';
-      case 'moto_carga': return 'Moto Carga';
-      case 'carro_carga': return 'Carro Carga';
-      default: return 'Vehículo';
-    }
-  }
-
-  IconData _getVehicleIcon(String type) {
-    switch (type) {
-      case 'moto': return Icons.two_wheeler;
-      case 'carro': return Icons.directions_car;
-      case 'moto_carga': return Icons.delivery_dining;
-      case 'carro_carga': return Icons.local_shipping;
-      default: return Icons.two_wheeler;
-    }
-  }
-
-  String _getVehicleDescription(String vehicleType) {
-    switch (vehicleType) {
-      case 'moto':
-        return 'Rápido y económico';
-      case 'carro':
-        return 'Cómodo y espacioso';
-      case 'moto_carga':
-        return 'Para paquetes pequeños';
-      case 'carro_carga':
-        return 'Para mudanzas y carga';
-      default:
-        return 'Vehículo seleccionado';
-    }
+    _mapController.fitCamera(CameraFit.bounds(
+      bounds: LatLngBounds(LatLng(minLat, minLng), LatLng(maxLat, maxLng)),
+      padding: const EdgeInsets.only(top: 150, bottom: 350, left: 50, right: 50),
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: Colors.black, // Fondo base oscuro
       body: Stack(
         children: [
-          // Mapa
           _buildMap(),
-
-          // Panel superior con información
-          _buildTopPanel(),
-
-          // Panel inferior con detalles
-          if (_quote != null) _buildBottomPanel(),
-
-          // Indicador de carga
-          if (_isLoading) _buildLoadingOverlay(),
-
-          // Mensaje de error
-          if (_errorMessage != null) _buildErrorOverlay(),
+          _buildTopOverlay(),
+          if (!_isLoading && _quotes.isNotEmpty) _buildBottomPanel(),
+          if (_isLoading) _buildLoading(),
+          if (_errorMessage != null) _buildError(),
         ],
       ),
     );
   }
 
+  // Mapa con estilo oscuro
   Widget _buildMap() {
     return FlutterMap(
       mapController: _mapController,
       options: MapOptions(
         initialCenter: widget.origin.toLatLng(),
-        initialZoom: 14,
-        interactionOptions: const InteractionOptions(
-          flags: InteractiveFlag.pinchZoom | InteractiveFlag.drag,
-        ),
+        initialZoom: 13,
+        interactionOptions: const InteractionOptions(flags: InteractiveFlag.all & ~InteractiveFlag.rotate),
       ),
       children: [
-        // Tiles de OSM
+        // Tiles oscuros (CartoDB Dark Matter)
         TileLayer(
-          urlTemplate: OsmService.getTileUrl(),
-          userAgentPackageName: 'com.example.ping_go',
+          urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png',
+          subdomains: const ['a', 'b', 'c', 'd'],
+          userAgentPackageName: 'com.ping_go.app',
         ),
-
-        // Línea de ruta simple
+        
+        // Ruta
         if (_route != null)
           PolylineLayer(
             polylines: [
               Polyline(
                 points: _route!.geometry,
-                strokeWidth: 6,
-                color: const Color(0xFFFFD700),
-                borderStrokeWidth: 0,
+                strokeWidth: 5,
+                color: const Color(0xFFFFD700), // Amarillo característico
               ),
             ],
           ),
 
-        // Marcadores simples con colores amarillo y negro
+        // Marcadores
         MarkerLayer(
           markers: [
-            // Origen
-            Marker(
-              point: widget.origin.toLatLng(),
-              width: 40,
-              height: 40,
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFD700),
-                  shape: BoxShape.circle,
-                  border: Border.fromBorderSide(
-                    BorderSide(color: Colors.black, width: 3),
-                  ),
-                ),
-                child: const Icon(
-                  Icons.circle,
-                  color: Colors.black,
-                  size: 16,
-                ),
-              ),
-            ),
-
-            // Destino
-            Marker(
-              point: widget.destination.toLatLng(),
-              width: 40,
-              height: 40,
-              child: Container(
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFD700),
-                  shape: BoxShape.circle,
-                  border: Border.fromBorderSide(
-                    BorderSide(color: Colors.black, width: 3),
-                  ),
-                ),
-                child: const Icon(
-                  Icons.location_on,
-                  color: Colors.black,
-                  size: 20,
-                ),
-              ),
-            ),
+            _buildMarker(widget.origin.toLatLng(), Icons.circle, Colors.white), // Origen blanco
+            _buildMarker(widget.destination.toLatLng(), Icons.location_on, const Color(0xFFFFD700)), // Destino amarillo
           ],
         ),
       ],
     );
   }
 
-  Widget _buildTopPanel() {
+  Marker _buildMarker(LatLng point, IconData icon, Color color) {
+    return Marker(
+      point: point,
+      width: 40,
+      height: 40,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black,
+          shape: BoxShape.circle,
+          boxShadow: [
+             BoxShadow(color: color.withOpacity(0.6), blurRadius: 8, spreadRadius: 2),
+          ],
+          border: Border.all(color: color, width: 2),
+        ),
+        child: Icon(icon, color: color, size: 20),
+      ),
+    );
+  }
+
+  Widget _buildTopOverlay() {
     return Positioned(
       top: 0,
       left: 0,
       right: 0,
       child: SafeArea(
-        child: Container(
-          margin: const EdgeInsets.all(16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: const Color(0x33FFD700),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header con botón de regresar
-              Row(
-                children: [
-                  Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: const Color(0x26FFD700),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back, size: 16, color: Color(0xFFFFD700)),
-                      onPressed: () => Navigator.pop(context),
-                      padding: EdgeInsets.zero,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  if (_quote != null)
-                    Expanded(
-                      child: Text(
-                        '${_quote!.formattedDistance} • ${_quote!.formattedDuration}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFFFFD700),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-
-              const SizedBox(height: 12),
-
-              // Información de ubicaciones con colores amarillo y negro
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0x1AFFD700),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: const Color(0x33FFD700),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    // Origen
-                    Row(
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFFD700),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.circle,
-                            color: Colors.black,
-                            size: 12,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            widget.origin.address,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Línea divisoria
-                    Container(
-                      height: 1,
-                      color: const Color(0x33FFD700),
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
-                    ),
-
-                    const SizedBox(height: 8),
-
-                    // Destino
-                    Row(
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 24,
-                          decoration: const BoxDecoration(
-                            color: Color(0xFFFFD700),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.location_on,
-                            color: Colors.black,
-                            size: 14,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            widget.destination.address,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                            ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomPanel() {
-    return Positioned(
-      bottom: 0,
-      left: 0,
-      right: 0,
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: const BoxDecoration(
-          color: Color(0xFF1A1A1A),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-        ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            // Información del vehículo
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2A2A2A),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: const Color(0xFFFFD700),
-                  width: 2,
-                ),
-              ),
+            // Botón atrás flotante
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white.withOpacity(0.1)),
+                      ),
+                      child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+                    ),
+                  ),
+                  const Spacer(),
+                  // Chip de info de ruta
+                  if (_route != null)
                   Container(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0x33FFD700),
-                      borderRadius: BorderRadius.circular(8),
+                      color: Colors.black.withOpacity(0.8),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.3)),
                     ),
-                    child: Icon(
-                      _getVehicleIcon(_selectedVehicleType),
-                      size: 24,
-                      color: const Color(0xFFFFD700),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _getVehicleName(_selectedVehicleType),
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          _getVehicleDescription(_selectedVehicleType),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[400],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    _quote!.formattedTotal,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFFFFD700),
+                    child: Text(
+                      '${_route!.distanceKm.toStringAsFixed(1)} km • ${(_route!.durationMinutes * 1.2).ceil()} min',
+                      style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ),
                 ],
               ),
             ),
-
-            const SizedBox(height: 16),
-
-            // Botón de solicitar viaje
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: _confirmTrip,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFFFD700),
-                  foregroundColor: Colors.black,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            
+            // Tarjeta de direcciones flotante
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1E1E1E).withOpacity(0.95),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 10, offset: const Offset(0, 4)),
+                ],
+              ),
+              child: Column(
+                children: [
+                  _buildAddressRow(Icons.circle, Colors.white, widget.origin.address),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 11),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Container(width: 2, height: 16, color: Colors.white.withOpacity(0.2)),
+                    ),
                   ),
-                ),
-                child: const Text(
-                  'Solicitar viaje',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                  _buildAddressRow(Icons.location_on, const Color(0xFFFFD700), widget.destination.address),
+                ],
               ),
             ),
-
-            const SizedBox(height: 16),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildLoadingOverlay() {
-    return Container(
-      color: const Color(0xB3000000),
-      child: const Center(
-        child: CircularProgressIndicator(
-          color: Color(0xFFFFD700),
+  Widget _buildAddressRow(IconData icon, Color color, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 16), // Icono más pequeño (estilo Uber)
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w500),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
         ),
+      ],
+    );
+  }
+
+  Widget _buildBottomPanel() {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.45,
+      minChildSize: 0.4,
+      maxChildSize: 0.85,
+      builder: (context, scrollController) {
+        return Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF161616),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+            boxShadow: [BoxShadow(color: Colors.black, blurRadius: 20, offset: Offset(0, -5))],
+          ),
+          child: Column(
+            children: [
+              // Handle de arrastre
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 20),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[800],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              
+              // Título
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24, vertical: 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Elige tu viaje',
+                    style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Lista de vehículos
+              Expanded(
+                child: ListView.builder(
+                  controller: scrollController,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  itemCount: _quotes.length,
+                  itemBuilder: (context, index) {
+                    final quote = _quotes[index];
+                    final isSelected = quote.vehicleType == _selectedVehicleType;
+                    
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedVehicleType = quote.vehicleType),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: isSelected ? const Color(0xFFFFD700).withOpacity(0.1) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? const Color(0xFFFFD700) : Colors.transparent,
+                            width: 2,
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            // Imagen vehículo (Icono por ahora)
+                            Container(
+                              width: 60,
+                              height: 60,
+                              // Aquí podrías usar Image.asset si tienes los assets
+                              decoration: BoxDecoration(
+                                // color: Colors.grey[900],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                _getVehicleIcon(quote.vehicleType),
+                                color: isSelected ? const Color(0xFFFFD700) : Colors.grey[400],
+                                size: 40,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            
+                            // Info
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _capitalize(quote.vehicleType),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    // Hora de llegada estimada
+                                    'Llega en 3-5 min', 
+                                    style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            
+                            // Precio
+                            Text(
+                              quote.formattedPrice,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              
+              // Botón Solicitar
+              SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: ElevatedButton(
+                      onPressed: _requestTrip,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFD700),
+                        foregroundColor: Colors.black,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: Text(
+                        'Solicitar ${_capitalize(_selectedVehicleType)}',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLoading() {
+    return Container(
+      color: Colors.black.withOpacity(0.7),
+      child: const Center(
+        child: CircularProgressIndicator(color: Color(0xFFFFD700)),
       ),
     );
   }
 
-  Widget _buildErrorOverlay() {
+  Widget _buildError() {
     return Container(
-      color: const Color(0xB3000000),
+      color: Colors.black.withOpacity(0.7),
       child: Center(
         child: Container(
-          margin: const EdgeInsets.all(20),
-          padding: const EdgeInsets.all(20),
+          margin: const EdgeInsets.all(32),
+          padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(16),
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(24),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.error_outline,
-                color: Colors.red,
-                size: 48,
-              ),
+              const Icon(Icons.error_outline_rounded, color: Colors.red, size: 48),
               const SizedBox(height: 16),
               Text(
-                _errorMessage!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
+                'Ups, algo salió mal',
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text(
-                      'Volver',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                  ElevatedButton(
-                    onPressed: _loadRouteAndQuote,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFD700),
-                      foregroundColor: Colors.black,
-                    ),
-                    child: const Text('Reintentar'),
-                  ),
-                ],
+              const SizedBox(height: 8),
+              Text(
+                _errorMessage ?? 'Error desconocido',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey[400]),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _initializeData,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFD700),
+                  foregroundColor: Colors.black,
+                ),
+                child: const Text('Reintentar'),
               ),
             ],
           ),
@@ -695,180 +559,97 @@ class _TripPreviewScreenState extends State<TripPreviewScreen> {
     );
   }
 
-  void _confirmTrip() async {
-    if (_quote == null || _route == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error: No se pudo calcular el viaje'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+  void _requestTrip() async {
+    final selectedQuote = _quotes.firstWhere((q) => q.vehicleType == _selectedVehicleType);
 
-    // Mostrar diálogo de carga
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFFFFD700)),
+    // 1. Navegar a pantalla de selección de punto de encuentro
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PickMeetingPointScreen(
+          initialLocation: widget.origin.toLatLng(), // Start at origin
+        ),
       ),
     );
 
+    // Si el usuario no confirmó (volvió atrás), cancelamos
+    if (result == null) return;
+
+    final newOriginLat = result['latitude'] as double;
+    final newOriginLng = result['longitude'] as double;
+    final newOriginAddress = result['address'] as String;
+
+    // Mostrar loading
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700))),
+    );
+
     try {
-      // Obtener usuario de la sesión
       final session = await UserService.getSavedSession();
-      if (session == null) {
-        throw Exception('No hay sesión activa. Por favor inicia sesión.');
-      }
+      if (session == null) throw Exception('No hay sesión activa.');
 
-      final userId = session['id'] as int?;
-      if (userId == null) {
-        throw Exception('Usuario no válido. Por favor inicia sesión nuevamente.');
-      }
+      final userId = session['id'] as int;
 
-      // Crear solicitud de viaje
       final response = await TripRequestService.createTripRequest(
         userId: userId,
-        latitudOrigen: widget.origin.latitude,
-        longitudOrigen: widget.origin.longitude,
-        direccionOrigen: widget.origin.address,
+        latitudOrigen: newOriginLat, // Usamos la nueva ubicación confirmada
+        longitudOrigen: newOriginLng,
+        direccionOrigen: newOriginAddress,
         latitudDestino: widget.destination.latitude,
         longitudDestino: widget.destination.longitude,
         direccionDestino: widget.destination.address,
         tipoServicio: 'viaje',
         tipoVehiculo: _selectedVehicleType,
-        distanciaKm: _quote!.distanceKm,
-        duracionMinutos: _quote!.durationMinutes,
-        precioEstimado: _quote!.totalPrice,
+        distanciaKm: selectedQuote.distanceKm,
+        duracionMinutos: selectedQuote.durationMinutes,
+        precioEstimado: selectedQuote.price,
       );
 
-      // Cerrar diálogo de carga
-      if (mounted) Navigator.of(context).pop();
+      if (mounted) Navigator.pop(context); // Cerrar loader
 
       if (response['success'] == true) {
-        final conductoresEncontrados = response['conductores_encontrados'] ?? 0;
-        final conductores = List<Map<String, dynamic>>.from(response['conductores'] ?? []);
-
-        if (conductoresEncontrados > 0 && conductores.isNotEmpty) {
-          // Seleccionar primer conductor y asignarlo (intentaremos cada conductor si falla)
-
-          // Mostrar notificación y asignar
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Conductor encontrado, asignando...'), backgroundColor: Colors.blue),
-            );
-          }
-
-          // Si hay varios conductores, permitir al usuario elegir, sino asignar automáticamente
-          int? selectedDriverId;
-          if (conductores.length > 1) {
-            // Mostrar selección de conductores
-            final selected = await showModalBottomSheet<Map<String, dynamic>>(
-              context: context,
-              backgroundColor: Colors.transparent,
-              builder: (context) {
-                return Container(
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-                  child: SafeArea(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const SizedBox(height: 12),
-                        const Text('Selecciona un conductor', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                        const SizedBox(height: 12),
-                        Flexible(
-                          child: ListView.separated(
-                            shrinkWrap: true,
-                            itemCount: conductores.length,
-                            separatorBuilder: (context, index) => Divider(),
-                            itemBuilder: (context, index) {
-                              final d = conductores[index];
-                              // final idv = int.tryParse(d['id'].toString()) ?? (d['id'] is int ? d['id'] : 0);
-                              return ListTile(
-                                leading: CircleAvatar(backgroundImage: d['foto_perfil'] != null ? NetworkImage(d['foto_perfil']) : null),
-                                title: Text('${d['nombre']} ${d['apellido']}'),
-                                subtitle: Text('${d['distancia_km'] ?? '-'} km'),
-                                onTap: () {
-                                  Navigator.pop(context, d);
-                                },
-                              );
-                            },
-                          ),
-                        )
-                      ],
-                    ),
-                  ),
-                );
-              },
-            );
-            if (selected != null) {
-              selectedDriverId = int.tryParse(selected['id'].toString()) ?? (selected['id'] is int ? selected['id'] : 0);
-            }
-          }
-
-          // Intentar asignar hasta que encontremos un conductor disponible o se acaben las opciones
-          bool assigned = false;
-          final solicitudId = int.tryParse(response['solicitud_id'].toString()) ?? 0;
-          for (var c in conductores) {
-            final id = int.tryParse(c['id'].toString()) ?? (c['id'] is int ? c['id'] : 0);
-            if (selectedDriverId != null && id != selectedDriverId) continue; // si el usuario seleccionó uno, intentar solo ese
-            try {
-              final assignRes = await TripRequestService.assignDriver(
-                solicitudId: solicitudId,
-                conductorId: id,
-                autoAccept: true,
-              );
-              if (assignRes['success'] == true) {
-                assigned = true;
-                if (mounted) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => TripStatusScreen(
-                        solicitudId: solicitudId,
-                        origin: widget.origin,
-                        destination: widget.destination,
-                      ),
-                    ),
-                  );
-                }
-                break;
-              }
-            } catch (e) {
-              continue; // intentar con siguiente conductor
-            }
-          }
-
-          if (!assigned) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('No se pudo asignar un conductor. Intenta nuevamente.'), backgroundColor: Colors.red),
-              );
-            }
-          }
-        } else {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Buscando conductores disponibles...'), backgroundColor: Colors.green),
-            );
-          }
-        }
-      }
-    } catch (e) {
-      // Cerrar diálogo de carga si está abierto
-      if (mounted) Navigator.of(context).pop();
-
-      // Mostrar error
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al solicitar viaje: ${e.toString()}'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 4),
+        final solicitudId = int.parse(response['solicitud_id'].toString());
+        
+        // Navegar a la pantalla de búsqueda con animación suave
+        Navigator.pushReplacement(
+          context,
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => SearchingDriverScreen(
+              solicitudId:  solicitudId,
+              pickupLocation: LatLng(newOriginLat, newOriginLng),
+              destinationLocation: widget.destination.toLatLng(),
+              pickupAddress: newOriginAddress,
+              destinationAddress: widget.destination.address,
+            ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
           ),
         );
       }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loader
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
+  // Helpers
+  String _capitalize(String s) => s.isNotEmpty ? '${s[0].toUpperCase()}${s.substring(1)}' : '';
+
+  IconData _getVehicleIcon(String type) {
+    switch (type.toLowerCase()) {
+      case 'motocicleta': return Icons.two_wheeler;
+      case 'moto': return Icons.two_wheeler;
+      case 'carro': return Icons.directions_car;
+      case 'moto_carga': return Icons.delivery_dining;
+      default: return Icons.directions_car;
     }
   }
 }

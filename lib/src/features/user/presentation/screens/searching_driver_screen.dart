@@ -2,171 +2,134 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:animate_do/animate_do.dart';
 import '../../services/trip_request_service.dart';
-import '../../../../global/services/osm_service.dart';
-import 'dart:ui';
+import 'trip_status_screen.dart';
+import 'select_destination_screen.dart';
 
 class SearchingDriverScreen extends StatefulWidget {
   final int solicitudId;
-  final double latitudOrigen;
-  final double longitudOrigen;
-  final String direccionOrigen;
-  final double latitudDestino;
-  final double longitudDestino;
-  final String direccionDestino;
-  final String tipoVehiculo;
+  final LatLng pickupLocation;
+  final LatLng destinationLocation;
+  final String pickupAddress;
+  final String destinationAddress;
 
   const SearchingDriverScreen({
-    super.key,
+    Key? key,
     required this.solicitudId,
-    required this.latitudOrigen,
-    required this.longitudOrigen,
-    required this.direccionOrigen,
-    required this.latitudDestino,
-    required this.longitudDestino,
-    required this.direccionDestino,
-    required this.tipoVehiculo,
-  });
+    required this.pickupLocation,
+    required this.destinationLocation,
+    required this.pickupAddress,
+    required this.destinationAddress,
+  }) : super(key: key);
 
   @override
   State<SearchingDriverScreen> createState() => _SearchingDriverScreenState();
 }
 
 class _SearchingDriverScreenState extends State<SearchingDriverScreen> with TickerProviderStateMixin {
-  Timer? _searchTimer;
-  List<Map<String, dynamic>> _nearbyDrivers = [];
-  late AnimationController _pulseController;
   late AnimationController _rippleController;
-  bool _isCancelling = false;
-  
+  Timer? _searchTimer;
+  Timer? _pollingTimer;
+  String _statusText = "Buscando conductor cercano...";
+  double _radius = 100.0;
+  int _secondsElapsed = 0;
+  bool _driverFound = false;
+
   @override
   void initState() {
     super.initState();
-    _setupAnimations();
-    _startSearching();
+    _startRippleAnimation();
+    _startSearchTimer();
+    _startPolling();
   }
 
-  void _setupAnimations() {
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
-
+  void _startRippleAnimation() {
     _rippleController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2000),
+      duration: const Duration(seconds: 2),
     )..repeat();
   }
 
-  void _startSearching() {
-    // Buscar conductores cada 3 segundos
-    _searchTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      _searchDrivers();
-    });
-    // Búsqueda inicial
-    _searchDrivers();
-  }
-
-  Future<void> _searchDrivers() async {
-    if (!mounted) return;
-
-    final drivers = await TripRequestService.findNearbyDrivers(
-      latitude: widget.latitudOrigen,
-      longitude: widget.longitudOrigen,
-      vehicleType: widget.tipoVehiculo,
-      radiusKm: 5.0,
-    );
-
-    if (mounted) {
-      setState(() {
-        _nearbyDrivers = drivers;
-      });
-
-      // Si no hay conductores después de 30 segundos, mostrar mensaje
-      if (_nearbyDrivers.isEmpty) {
-        Future.delayed(const Duration(seconds: 30), () {
-          if (mounted && _nearbyDrivers.isEmpty) {
-            _showNoDriversDialog();
+  void _startSearchTimer() {
+    _searchTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!_driverFound) {
+        setState(() {
+          _secondsElapsed++;
+          if (_secondsElapsed % 5 == 0) {
+            _radius += 30;
+            if (_secondsElapsed > 10 && _secondsElapsed <= 25) {
+              _statusText = "Ampliando zona de búsqueda...";
+            } else if (_secondsElapsed > 25) {
+              _statusText = "Contactando más conductores...";
+            }
           }
         });
       }
-    }
+    });
   }
 
-  void _showNoDriversDialog() {
-    showDialog(
-      context: context,
-      barrierColor: Colors.black.withOpacity(0.7),
-      builder: (context) => _CustomAlertDialog(
-        icon: Icons.search_off_rounded,
-        iconColor: const Color(0xFFFFA726),
-        title: 'No hay conductores disponibles',
-        titleColor: const Color(0xFFFFA726),
-        message: 'Lo sentimos, no hay conductores disponibles en este momento. ¿Deseas seguir esperando?',
-        primaryButtonText: 'Seguir esperando',
-        primaryButtonColor: const Color(0xFFFFD700),
-        secondaryButtonText: 'Cancelar viaje',
-        onPrimaryPressed: () => Navigator.of(context).pop(),
-        onSecondaryPressed: () {
-          Navigator.of(context).pop();
-          _cancelTrip();
-        },
-      ),
-    );
-  }
-
-  Future<void> _cancelTrip() async {
-    if (_isCancelling) return;
-    
-    setState(() => _isCancelling = true);
-    
-    try {
-      final success = await TripRequestService.cancelTripRequest(widget.solicitudId);
-      if (mounted) {
-        if (success) {
-          Navigator.of(context).pop();
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 12),
-                  Text('Viaje cancelado exitosamente'),
-                ],
-              ),
-              backgroundColor: const Color(0xFF4CAF50),
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              duration: const Duration(seconds: 3),
-            ),
-          );
+  void _startPolling() {
+    _pollingTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      try {
+        final status = await TripRequestService.getTripStatus(solicitudId: widget.solicitudId);
+        if (status['success'] == true && status['trip'] != null) {
+          final tripData = status['trip'];
+          final conductor = tripData['conductor'];
+          final estado = tripData['estado'];
+          
+          // Check if driver was assigned
+          if (conductor != null && estado != 'pendiente') {
+            _driverFound = true;
+            _pollingTimer?.cancel();
+            _searchTimer?.cancel();
+            
+            if (mounted) {
+              // Navigate to trip status/tracking screen
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TripStatusScreen(
+                    solicitudId: widget.solicitudId,
+                    origin: SimpleLocation(
+                      latitude: widget.pickupLocation.latitude,
+                      longitude: widget.pickupLocation.longitude,
+                      address: widget.pickupAddress,
+                    ),
+                    destination: SimpleLocation(
+                      latitude: widget.destinationLocation.latitude,
+                      longitude: widget.destinationLocation.longitude,
+                      address: widget.destinationAddress,
+                    ),
+                  ),
+                ),
+              );
+            }
+          } else if (estado == 'cancelada') {
+            _pollingTimer?.cancel();
+            _searchTimer?.cancel();
+            if (mounted) {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Solicitud cancelada'), backgroundColor: Colors.red),
+              );
+            }
+          }
         }
+      } catch (e) {
+        debugPrint('Polling error: $e');
       }
+    });
+  }
+
+  Future<void> _cancelRequest() async {
+    try {
+      final result = await TripRequestService.cancelTripRequest(widget.solicitudId);
+      if (result && mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
-        setState(() => _isCancelling = false);
-        
-        // Extraer el mensaje de error
-        String errorMessage = e.toString().replaceFirst('Exception: ', '');
-        
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error_outline, color: Colors.white),
-                const SizedBox(width: 12),
-                Expanded(child: Text(errorMessage)),
-              ],
-            ),
-            backgroundColor: const Color(0xFFFF5252),
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            duration: const Duration(seconds: 4),
-          ),
+          SnackBar(content: Text('Error al cancelar: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -174,267 +137,177 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> with Tick
 
   @override
   void dispose() {
-    _searchTimer?.cancel();
-    _pulseController.dispose();
     _rippleController.dispose();
+    _searchTimer?.cancel();
+    _pollingTimer?.cancel();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
       body: Stack(
         children: [
-          // Mapa de fondo
+          // 1. Map Background (Dark Mode)
           FlutterMap(
             options: MapOptions(
-              initialCenter: LatLng(widget.latitudOrigen, widget.longitudOrigen),
-              initialZoom: 14,
+              initialCenter: widget.pickupLocation,
+              initialZoom: 15.0,
+              interactionOptions: const InteractionOptions(
+                flags: InteractiveFlag.none,
+              ),
             ),
             children: [
               TileLayer(
-                urlTemplate: OsmService.getTileUrl(),
-                userAgentPackageName: 'com.example.ping_go',
+                urlTemplate: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+                subdomains: const ['a', 'b', 'c', 'd'],
               ),
-              // Marcador de origen
               MarkerLayer(
                 markers: [
                   Marker(
-                    point: LatLng(widget.latitudOrigen, widget.longitudOrigen),
-                    width: 50,
-                    height: 50,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFD700),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 3),
-                      ),
-                      child: const Icon(Icons.location_on, color: Colors.white),
-                    ),
+                    point: widget.pickupLocation,
+                    width: 200,
+                    height: 200,
+                    child: _buildRippleMarker(),
                   ),
                 ],
               ),
             ],
           ),
 
-          // Overlay con información
+          // 2. Overlay Gradient
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.3),
+                    Colors.black.withOpacity(0.8),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // 3. Status Info & Actions
           SafeArea(
             child: Column(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Header
+                // Top Bar
                 Padding(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.all(16.0),
                   child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back_ios, color: Colors.white),
+                        onPressed: () => _showCancelDialog(),
+                      ),
                       Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF1A1A1A).withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(12),
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(20),
                         ),
-                        child: IconButton(
-                          icon: const Icon(Icons.close, color: Colors.white),
-                          onPressed: () {
-                            _showCancelDialog();
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const Spacer(),
-
-                // Panel de búsqueda
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A).withOpacity(0.95),
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                    border: Border.all(
-                      color: const Color(0xFFFFD700).withOpacity(0.2),
-                      width: 1.5,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFFFFD700).withOpacity(0.1),
-                        blurRadius: 30,
-                        spreadRadius: 0,
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const SizedBox(height: 32),
-                      
-                      // Animación de búsqueda con ondas expansivas
-                      SizedBox(
-                        width: 140,
-                        height: 140,
-                        child: Stack(
-                          alignment: Alignment.center,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            // Ondas expansivas
-                            ...List.generate(3, (index) {
-                              return AnimatedBuilder(
-                                animation: _rippleController,
-                                builder: (context, child) {
-                                  final delay = index * 0.33;
-                                  final progress = (_rippleController.value + delay) % 1.0;
-                                  return Container(
-                                    width: 140 * progress,
-                                    height: 140 * progress,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: const Color(0xFFFFD700).withOpacity(0.4 * (1 - progress)),
-                                        width: 2,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              );
-                            }),
-                            // Círculo central con pulso
-                            AnimatedBuilder(
-                              animation: _pulseController,
-                              builder: (context, child) {
-                                return Container(
-                                  width: 80 + (_pulseController.value * 10),
-                                  height: 80 + (_pulseController.value * 10),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: const Color(0xFFFFD700).withOpacity(0.2),
-                                  ),
-                                  child: Center(
-                                    child: Container(
-                                      width: 60,
-                                      height: 60,
-                                      decoration: const BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Color(0xFFFFD700),
-                                      ),
-                                      child: const Icon(
-                                        Icons.person_search_rounded,
-                                        size: 32,
-                                        color: Color(0xFF1A1A1A),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
+                            const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFFFFD700),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              "Buscando...",
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                             ),
                           ],
                         ),
                       ),
-                      const SizedBox(height: 24),
-                      
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(
-                          'Buscando conductor',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.3,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(
-                          _nearbyDrivers.isEmpty 
-                              ? 'Buscando conductores disponibles cerca de ti...'
-                              : '${_nearbyDrivers.length} ${_nearbyDrivers.length == 1 ? "conductor encontrado" : "conductores encontrados"}',
-                          style: TextStyle(
-                            color: Colors.white.withOpacity(0.7),
-                            fontSize: 14,
-                            height: 1.4,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      const SizedBox(height: 24),
+                      const SizedBox(width: 48),
+                    ],
+                  ),
+                ),
 
-                      // Información del viaje
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                // Bottom Content
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF161616),
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                    boxShadow: [BoxShadow(color: Colors.black, blurRadius: 20, offset: Offset(0, -5))],
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 20),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[700],
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      Pulse(
+                        infinite: true,
                         child: Container(
-                          padding: const EdgeInsets.all(16),
+                          width: 70,
+                          height: 70,
                           decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.05),
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.1),
-                              width: 1,
-                            ),
+                            shape: BoxShape.circle,
+                            color: const Color(0xFFFFD700).withOpacity(0.15),
+                            border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.5), width: 2),
                           ),
-                          child: Column(
-                            children: [
-                              _buildInfoRow(
-                                Icons.radio_button_checked,
-                                'Origen',
-                                widget.direccionOrigen,
-                              ),
-                              const SizedBox(height: 12),
-                              _buildInfoRow(
-                                Icons.location_on,
-                                'Destino',
-                                widget.direccionDestino,
-                              ),
-                            ],
+                          child: const Center(
+                            child: Icon(Icons.local_taxi, color: Color(0xFFFFD700), size: 35),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
-
-                      // Botón cancelar
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: SizedBox(
-                          width: double.infinity,
-                          height: 52,
-                          child: OutlinedButton(
-                            onPressed: _isCancelling ? null : _showCancelDialog,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFFFF5252),
-                              side: BorderSide(
-                                color: _isCancelling 
-                                    ? Colors.grey.withOpacity(0.3)
-                                    : const Color(0xFFFF5252).withOpacity(0.5),
-                                width: 1.5,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              disabledForegroundColor: Colors.grey,
-                            ),
-                            child: _isCancelling
-                                ? const SizedBox(
-                                    width: 20,
-                                    height: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.grey),
-                                    ),
-                                  )
-                                : const Text(
-                                    'Cancelar búsqueda',
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w600,
-                                      letterSpacing: 0.3,
-                                    ),
-                                  ),
+                      const SizedBox(height: 20),
+                      Text(
+                        _statusText,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        "Tiempo: ${_formatTime(_secondsElapsed)}",
+                        style: TextStyle(
+                          color: Colors.grey[400],
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _buildRadiusIndicator(),
+                      const SizedBox(height: 30),
+                      // Cancel Button
+                      SizedBox(
+                        width: double.infinity,
+                        height: 50,
+                        child: OutlinedButton(
+                          onPressed: _showCancelDialog,
+                          style: OutlinedButton.styleFrom(
+                            side: BorderSide(color: Colors.red.withOpacity(0.7)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text(
+                            "Cancelar Solicitud",
+                            style: TextStyle(color: Colors.redAccent, fontSize: 16, fontWeight: FontWeight.w500),
                           ),
                         ),
                       ),
-                      const SizedBox(height: 24),
                     ],
                   ),
                 ),
@@ -446,246 +319,87 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> with Tick
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
+  Widget _buildRadiusIndicator() {
+    final radiusKm = (_radius / 100).clamp(1, 10);
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Icon(icon, color: const Color(0xFFFFD700), size: 20),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.5),
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
+        Icon(Icons.radar, color: Colors.grey[500], size: 16),
+        const SizedBox(width: 6),
+        Text(
+          'Radio: ~${radiusKm.toStringAsFixed(0)} km',
+          style: TextStyle(color: Colors.grey[500], fontSize: 13),
         ),
       ],
     );
   }
 
+  String _formatTime(int seconds) {
+    final mins = seconds ~/ 60;
+    final secs = seconds % 60;
+    return '${mins.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
+  }
+
   void _showCancelDialog() {
-    if (_isCancelling) return;
-    
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.7),
-      builder: (context) => _CustomAlertDialog(
-        icon: Icons.cancel_outlined,
-        iconColor: const Color(0xFFFF5252),
-        title: '¿Cancelar búsqueda?',
-        titleColor: const Color(0xFFFF5252),
-        message: '¿Estás seguro de que deseas cancelar la búsqueda de conductor? Esta acción no se puede deshacer.',
-        primaryButtonText: 'Sí, cancelar',
-        primaryButtonColor: const Color(0xFFFF5252),
-        secondaryButtonText: 'Seguir buscando',
-        onPrimaryPressed: () {
-          Navigator.of(context).pop();
-          _cancelTrip();
-        },
-        onSecondaryPressed: () => Navigator.of(context).pop(),
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancelar solicitud', style: TextStyle(color: Colors.white)),
+        content: const Text('¿Estás seguro que deseas cancelar esta solicitud?', style: TextStyle(color: Colors.grey)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('No', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _cancelRequest();
+            },
+            child: const Text('Sí, cancelar', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
       ),
     );
   }
-}
 
-/// Custom Alert Dialog siguiendo el estilo del proyecto
-class _CustomAlertDialog extends StatelessWidget {
-  final IconData icon;
-  final Color iconColor;
-  final String title;
-  final Color titleColor;
-  final String message;
-  final String primaryButtonText;
-  final Color primaryButtonColor;
-  final String secondaryButtonText;
-  final VoidCallback onPrimaryPressed;
-  final VoidCallback onSecondaryPressed;
-
-  const _CustomAlertDialog({
-    required this.icon,
-    required this.iconColor,
-    required this.title,
-    required this.titleColor,
-    required this.message,
-    required this.primaryButtonText,
-    required this.primaryButtonColor,
-    required this.secondaryButtonText,
-    required this.onPrimaryPressed,
-    required this.onSecondaryPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      elevation: 0,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 360),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A1A),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: iconColor.withOpacity(0.3),
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: iconColor.withOpacity(0.15),
-              blurRadius: 30,
-              spreadRadius: 0,
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+  Widget _buildRippleMarker() {
+    return AnimatedBuilder(
+      animation: _rippleController,
+      builder: (context, child) {
+        return Stack(
+          alignment: Alignment.center,
           children: [
-            // Header con icono
-            Container(
-              padding: const EdgeInsets.only(top: 32, bottom: 20),
-              child: Column(
-                children: [
-                  // Icono con efecto glow (sin gradiente, solo opacity)
-                  Container(
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: iconColor.withOpacity(0.15),
-                    ),
-                    child: Center(
-                      child: Icon(icon, size: 44, color: iconColor),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  
-                  // Título
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w700,
-                        color: titleColor,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Mensaje
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Container(
-                padding: const EdgeInsets.all(20),
+            // Expanding Circles
+            ...List.generate(3, (index) {
+              final delay = index * 0.3;
+              final value = (_rippleController.value + delay) % 1.0;
+              final size = 40.0 + (value * (_radius * 0.8));
+              final opacity = (1.0 - value).clamp(0.0, 1.0);
+              
+              return Container(
+                width: size,
+                height: size,
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
-                    width: 1,
-                  ),
+                  shape: BoxShape.circle,
+                  color: const Color(0xFFFFD700).withOpacity(opacity * 0.4),
                 ),
-                child: Text(
-                  message,
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontSize: 15,
-                    height: 1.5,
-                    letterSpacing: 0.2,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+              );
+            }),
+            // Center Pin
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: const BoxDecoration(
+                color: Color(0xFFFFD700),
+                shape: BoxShape.circle,
               ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Botones
-            Padding(
-              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
-              child: Column(
-                children: [
-                  // Botón primario
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: ElevatedButton(
-                      onPressed: onPrimaryPressed,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primaryButtonColor,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        shadowColor: Colors.transparent,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: Text(
-                        primaryButtonText,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  // Botón secundario
-                  SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: OutlinedButton(
-                      onPressed: onSecondaryPressed,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white70,
-                        side: BorderSide(
-                          color: Colors.white.withOpacity(0.2),
-                          width: 1.5,
-                        ),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                      ),
-                      child: Text(
-                        secondaryButtonText,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 0.3,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              child: const Icon(Icons.person_pin_circle, color: Colors.black, size: 24),
             ),
           ],
-        ),
-      ),
+        );
+      },
     );
   }
 }

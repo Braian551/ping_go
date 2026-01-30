@@ -241,6 +241,9 @@ class ConductorService {
     String? modeloVehiculo,
     String? anoVehiculo,
     String? colorVehiculo,
+    String? aseguradora,
+    String? numeroPolizaSeguro,
+    String? vencimientoSeguro,
   }) async {
     try {
       final body = {
@@ -253,6 +256,9 @@ class ConductorService {
         if (modeloVehiculo != null) 'modelo_vehiculo': modeloVehiculo,
         if (anoVehiculo != null) 'ano_vehiculo': anoVehiculo,
         if (colorVehiculo != null) 'color_vehiculo': colorVehiculo,
+        if (aseguradora != null) 'aseguradora': aseguradora,
+        if (numeroPolizaSeguro != null) 'numero_poliza_seguro': numeroPolizaSeguro,
+        if (vencimientoSeguro != null) 'vencimiento_seguro': vencimientoSeguro,
       };
 
       print('Enviando solicitud de conductor: $body');
@@ -302,6 +308,35 @@ class ConductorService {
     } catch (e) {
       print('Error obteniendo perfil conductor: $e');
       return {'success': false, 'message': e.toString()};
+    }
+  }
+  /// Subir documento de conductor
+  static Future<bool> uploadDocument({
+    required int conductorId,
+    required String filePath,
+    required String type, // 'licencia_frente' or 'licencia_reverso'
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/upload_documents.php');
+      final request = http.MultipartRequest('POST', uri);
+      
+      request.fields['conductor_id'] = conductorId.toString();
+      request.fields['type'] = type;
+      request.files.add(await http.MultipartFile.fromPath('file', filePath));
+      
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      
+      print('Respuesta uploadDocument ($type): ${response.body}');
+      
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      }
+      return false;
+    } catch (e) {
+      print('Error subiendo documento $type: $e');
+      return false;
     }
   }
 }

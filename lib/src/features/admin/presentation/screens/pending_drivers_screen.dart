@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:ping_go/src/global/services/admin/admin_service.dart';
+import 'package:ping_go/src/global/config/api_config.dart';
 import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -264,108 +265,279 @@ class _PendingDriversScreenState extends State<PendingDriversScreen> {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header con info de usuario
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: const Color(0xFFFFFF00),
-                  child: Text(
-                    (driver['nombre'] ?? 'U')[0].toUpperCase(),
-                    style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
-                  ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => _showDriverDetails(driver),
+          borderRadius: BorderRadius.circular(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header con info de usuario
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: const Color(0xFFFFFF00),
+                      child: Text(
+                        (driver['nombre'] ?? 'U')[0].toUpperCase(),
+                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${driver['nombre']} ${driver['apellido']}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          Text(
+                            driver['email'] ?? 'Sin email',
+                            style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 14),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.orange.withOpacity(0.5)),
+                      ),
+                      child: const Text(
+                        'Pendiente',
+                        style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '${driver['nombre']} ${driver['apellido']}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
+              ),
+              const Divider(color: Colors.white12, height: 1),
+              // Detalles del vehículo y licencia
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildInfoRow(Icons.badge, 'Licencia:', driver['numero_licencia']),
+                    const SizedBox(height: 8),
+                    _buildInfoRow(Icons.calendar_today, 'Vence:', driver['vencimiento_licencia']),
+                    const SizedBox(height: 8),
+                    _buildInfoRow(Icons.directions_car, 'Vehículo:', 
+                        '${driver['tipo_vehiculo']} - ${driver['marca_vehiculo']} ${driver['modelo_vehiculo']}'),
+                    const SizedBox(height: 8),
+                    _buildInfoRow(Icons.confirmation_number, 'Placa:', driver['placa_vehiculo']),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.white12, height: 1),
+              // Botones de acción
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () => _rejectDriver(int.parse(driver['id'].toString())),
+                        icon: const Icon(Icons.close, color: Colors.red),
+                        label: const Text('Rechazar', style: TextStyle(color: Colors.red)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.red),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
                         ),
                       ),
-                      Text(
-                        driver['email'] ?? 'Sin email',
-                        style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 14),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _approveDriver(int.parse(driver['id'].toString())),
+                        icon: const Icon(Icons.check, color: Colors.black),
+                        label: const Text('Aprobar', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFFFF00),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                        ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showDriverDetails(Map<String, dynamic> driver) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => DraggableScrollableSheet(
+        initialChildSize: 0.85,
+        minChildSize: 0.5,
+        maxChildSize: 0.95,
+        builder: (_, controller) => Container(
+          decoration: const BoxDecoration(
+            color: Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            children: [
+              // Handle bar
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.orange.withOpacity(0.5)),
-                  ),
-                  child: const Text(
-                    'Pendiente',
-                    style: TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold),
+                    color: Colors.white.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const Divider(color: Colors.white12, height: 1),
-          // Detalles del vehículo y licencia
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _buildInfoRow(Icons.badge, 'Licencia:', driver['numero_licencia']),
-                const SizedBox(height: 8),
-                _buildInfoRow(Icons.calendar_today, 'Vence:', driver['vencimiento_licencia']),
-                const SizedBox(height: 8),
-                _buildInfoRow(Icons.directions_car, 'Vehículo:', 
-                    '${driver['tipo_vehiculo']} - ${driver['marca_vehiculo']} ${driver['modelo_vehiculo']}'),
-                const SizedBox(height: 8),
-                _buildInfoRow(Icons.confirmation_number, 'Placa:', driver['placa_vehiculo']),
-              ],
-            ),
-          ),
-          const Divider(color: Colors.white12, height: 1),
-          // Botones de acción
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () => _rejectDriver(int.parse(driver['id'].toString())),
-                    icon: const Icon(Icons.close, color: Colors.red),
-                    label: const Text('Rechazar', style: TextStyle(color: Colors.red)),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(color: Colors.red),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              Expanded(
+                child: ListView(
+                  controller: controller,
+                  padding: const EdgeInsets.all(24),
+                  children: [
+                    // Header
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 30,
+                          backgroundColor: const Color(0xFFFFFF00),
+                          backgroundImage: driver['url_imagen_perfil'] != null
+                              ? NetworkImage(driver['url_imagen_perfil'])
+                              : null,
+                          child: driver['url_imagen_perfil'] == null
+                              ? Text(
+                                  (driver['nombre'] ?? 'U')[0].toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Colors.black,
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${driver['nombre']} ${driver['apellido']}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                driver['email'] ?? 'Sin email',
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.6),
+                                  fontSize: 14,
+                                ),
+                              ),
+                              if (driver['telefono'] != null)
+                                Text(
+                                  driver['telefono'],
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.6),
+                                    fontSize: 14,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () => _approveDriver(int.parse(driver['id'].toString())),
-                    icon: const Icon(Icons.check, color: Colors.black),
-                    label: const Text('Aprobar', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFFF00),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    const SizedBox(height: 24),
+                    const Divider(color: Colors.white12),
+                    const SizedBox(height: 16),
+                    
+                    _buildSectionTitle('Información del Vehículo'),
+                    _buildDetailItem(Icons.directions_car, 'Vehículo', 
+                      '${driver['marca_vehiculo']} ${driver['modelo_vehiculo']} (${driver['ano_vehiculo'] ?? 'N/A'})'),
+                    _buildDetailItem(Icons.palette, 'Color', driver['color_vehiculo']),
+                    _buildDetailItem(Icons.confirmation_number, 'Placa', driver['placa_vehiculo']),
+                    _buildDetailItem(Icons.numbers, 'Tipo', driver['tipo_vehiculo']),
+
+                    const SizedBox(height: 24),
+                    _buildSectionTitle('Licencia y Seguro'),
+                    _buildDetailItem(Icons.badge, 'No. Licencia', driver['numero_licencia']),
+                    _buildDetailItem(Icons.event, 'Vence Licencia', driver['vencimiento_licencia']),
+                    _buildDetailItem(Icons.security, 'Aseguradora', driver['aseguradora'] ?? 'No registrada'),
+                    _buildDetailItem(Icons.policy, 'Póliza', driver['numero_poliza_seguro'] ?? 'No registrada'),
+                    _buildDetailItem(Icons.event_available, 'Vence Seguro', driver['vencimiento_seguro'] ?? 'No registrado'),
+
+                    const SizedBox(height: 24),
+                    _buildSectionTitle('Documentos'),
+                    const SizedBox(height: 12),
+                    if (driver['foto_licencia_frente'] != null)
+                      _buildImagePreview('Licencia Frente', driver['foto_licencia_frente']),
+                    if (driver['foto_licencia_reverso'] != null)
+                      _buildImagePreview('Licencia Reverso', driver['foto_licencia_reverso']),
+
+                    const SizedBox(height: 30),
+                    // Action Buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _rejectDriver(int.parse(driver['id'].toString()));
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.red),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Rechazar', style: TextStyle(color: Colors.red)),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              Navigator.pop(context);
+                              _approveDriver(int.parse(driver['id'].toString()));
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFFFF00),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: const Text('Aprobar', 
+                              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
+                    const SizedBox(height: 20),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -389,5 +561,152 @@ class _PendingDriversScreenState extends State<PendingDriversScreen> {
         ),
       ],
     );
+  }
+
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Text(
+        title,
+        style: const TextStyle(
+          color: Color(0xFFFFFF00),
+          fontSize: 16,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 0.5,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailItem(IconData icon, String label, String? value) {
+    if (value == null || value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.05),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, color: Colors.white70, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.5),
+                    fontSize: 12,
+                  ),
+                ),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImagePreview(String label, String relativePath) {
+    // Construir URL correcta eliminando '/backend-deploy' si existe en la baseUrl para apuntar a la raíz
+    // Esto asume que la estructura es ping_go/backend-deploy y ping_go/uploads
+    final baseUrl = 'http://10.0.2.2/ping_go'; // Fallback
+    // Idealmente deberíamos importar ApiConfig y procesarlo, pero por simplicidad y robustez aquí:
+    
+    // Una forma más segura usando ApiConfig real si está disponible
+    // String rootUrl = ApiConfig.baseUrl.replaceAll('/backend-deploy', '');
+    
+    // Hardcoded for now based on known structure or getting from ApiConfig via import if possible.
+    // Assuming context knows ApiConfig or we import it.
+    // For this snippet, I'll assume we need to import ApiConfig which is already imported in many files.
+    // But since I can't easily see imports here, I'll rely on the user having ApiConfig. import is at top.
+    
+    // The relative path in DB is uploads/conductores/...
+    // We need to fetch from http://IP/ping_go/uploads/...
+    // ApiConfig.baseUrl is http://IP/ping_go/backend-deploy
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 200,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Image.network(
+              _buildImageUrl(relativePath),
+              fit: BoxFit.cover,
+              loadingBuilder: (context, child, loadingProgress) {
+                if (loadingProgress == null) return child;
+                return Center(
+                  child: CircularProgressIndicator(
+                    value: loadingProgress.expectedTotalBytes != null
+                        ? loadingProgress.cumulativeBytesLoaded / 
+                          loadingProgress.expectedTotalBytes!
+                        : null,
+                    color: const Color(0xFFFFFF00),
+                  ),
+                );
+              },
+              errorBuilder: (context, error, stackTrace) {
+                return const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.broken_image, color: Colors.white54, size: 40),
+                      SizedBox(height: 8),
+                      Text('Error cargando imagen', style: TextStyle(color: Colors.white54)),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  String _buildImageUrl(String relativePath) {
+    // ApiConfig.baseUrl example: http://10.0.2.2/ping_go/backend-deploy
+    // We want: http://10.0.2.2/ping_go/{relativePath}
+    String baseUrl = ApiConfig.baseUrl;
+    if (baseUrl.endsWith('/backend-deploy')) {
+      baseUrl = baseUrl.replaceAll('/backend-deploy', '');
+    }
+    // Remove trailing slash if exists to avoid double slash
+    if (baseUrl.endsWith('/')) {
+      baseUrl = baseUrl.substring(0, baseUrl.length - 1);
+    }
+    // Correct relative path if it starts with slash (though typically it doesn't from DB)
+    if (relativePath.startsWith('/')) {
+      relativePath = relativePath.substring(1);
+    }
+    
+    return '$baseUrl/$relativePath';
   }
 }

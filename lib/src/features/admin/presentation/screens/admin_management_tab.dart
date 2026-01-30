@@ -166,11 +166,11 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
               ),
               _ManagementItem(
                 title: 'Tarifas y Comisiones',
-                subtitle: 'Función en desarrollo',
+                subtitle: 'Gestionar precios y comisiones en COP',
                 icon: Icons.attach_money_rounded,
                 accentColor: const Color(0xFFFFFF00),
                 onTap: () {
-                  _showComingSoon();
+                  Navigator.pushNamed(context, RouteNames.adminRates);
                 },
               ),
               _ManagementItem(

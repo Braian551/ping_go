@@ -18,6 +18,7 @@ class HomeUserScreen extends StatefulWidget {
 
 class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStateMixin {
   String? _userName;
+  String? _conductorStatus; // 'pendiente', 'aprobado', 'rechazado', or null
   bool _loading = true;
   int _selectedIndex = 0;
   late AnimationController _animationController;
@@ -136,9 +137,22 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
         if (profile != null && profile['success'] == true) {
           final user = profile['user'];
           final name = user != null ? user['nombre'] as String? : null;
+          
+          // Verificar estado de conductor
+          String? status;
+          if (id != null) {
+             try {
+               final conductorProfile = await ConductorService.getConductorProfile(id);
+               if (conductorProfile['success'] == true && conductorProfile['data'] != null) {
+                 status = conductorProfile['data']['estado_aprobacion'];
+               }
+             } catch (_) {}
+          }
+
           if (mounted) {
             setState(() {
               _userName = name ?? 'Usuario';
+              _conductorStatus = status;
               _loading = false;
             });
             _animationController.forward();
@@ -159,9 +173,22 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
             if (profile != null && profile['success'] == true) {
               final user = profile['user'];
               final name = user != null ? user['nombre'] as String? : null;
+              
+              // Verificar estado de conductor
+              String? status;
+              if (idArg != null) {
+                 try {
+                   final conductorProfile = await ConductorService.getConductorProfile(idArg);
+                   if (conductorProfile['success'] == true && conductorProfile['data'] != null) {
+                     status = conductorProfile['data']['estado_aprobacion'];
+                   }
+                 } catch (_) {}
+              }
+
               if (mounted) {
                 setState(() {
                   _userName = name ?? 'Usuario';
+                  _conductorStatus = status;
                   _loading = false;
                 });
                 if (idArg != null && emailArg != null) {
@@ -697,11 +724,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
   Widget _buildProfileMenu() {
     return Column(
       children: [
-        _buildProfileMenuItem(
-          icon: Icons.drive_eta,
-          title: 'Ser conductor',
-          onTap: _handleBeDriverTap,
-        ),
+        _buildDynamicConductorButton(),
         const SizedBox(height: 12),
         _buildProfileMenuItem(
           icon: Icons.settings,
@@ -735,6 +758,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
     required String title,
     required VoidCallback onTap,
     bool isLogout = false,
+    Color? customColor,
   }) {
     return GestureDetector(
       onTap: onTap,
@@ -763,12 +787,14 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                   decoration: BoxDecoration(
                     color: isLogout
                         ? Colors.red.withOpacity(0.2)
-                        : const Color(0xFFFFFF00).withOpacity(0.2),
+                        : (customColor?.withOpacity(0.2) ?? const Color(0xFFFFFF00).withOpacity(0.2)),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
                     icon, 
-                    color: isLogout ? Colors.red : const Color(0xFFFFFF00), 
+                    color: isLogout 
+                        ? Colors.red 
+                        : (customColor ?? const Color(0xFFFFFF00)), 
                     size: 24,
                   ),
                 ),
@@ -777,7 +803,9 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                   child: Text(
                     title,
                     style: TextStyle(
-                      color: isLogout ? Colors.red : Colors.white,
+                      color: isLogout 
+                          ? Colors.red 
+                          : (customColor ?? Colors.white),
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
                     ),
@@ -787,7 +815,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                   Icons.arrow_forward_ios, 
                   color: isLogout 
                       ? Colors.red.withOpacity(0.5)
-                      : Colors.white.withOpacity(0.3), 
+                      : (customColor?.withOpacity(0.5) ?? Colors.white.withOpacity(0.3)), 
                   size: 18,
                 ),
               ],
@@ -1330,6 +1358,33 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDynamicConductorButton() {
+    IconData icon = Icons.drive_eta;
+    String title = 'Ser conductor';
+    Color? colorOverride;
+
+    if (_conductorStatus == 'pendiente') {
+      icon = Icons.hourglass_top_rounded;
+      title = 'Solicitud en proceso';
+      colorOverride = Colors.orange;
+    } else if (_conductorStatus == 'aprobado') {
+      icon = Icons.directions_car_filled;
+      title = 'Modo Conductor';
+      colorOverride = Colors.green;
+    } else if (_conductorStatus == 'rechazado') {
+      icon = Icons.error_outline_rounded;
+      title = 'Solicitud rechazada';
+      colorOverride = Colors.red;
+    }
+
+    return _buildProfileMenuItem(
+      icon: icon,
+      title: title,
+      onTap: _handleBeDriverTap,
+      customColor: colorOverride,
     );
   }
 

@@ -38,6 +38,7 @@ dependencies:
   # Audio
   audioplayers: ^6.1.0
   flutter_dotenv: ^5.1.0
+  animate_do: ^3.3.4
 
 
 

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost:3306
--- Generation Time: Jan 29, 2026 at 07:12 PM
+-- Generation Time: Jan 30, 2026 at 03:26 AM
 -- Server version: 8.0.30
 -- PHP Version: 8.3.25
 
@@ -109,13 +109,23 @@ CREATE TABLE `detalles_conductor` (
   `aseguradora` varchar(100) DEFAULT NULL,
   `numero_poliza_seguro` varchar(100) DEFAULT NULL,
   `vencimiento_seguro` date DEFAULT NULL,
+  `foto_licencia_reverso` varchar(500) DEFAULT NULL,
+  `foto_licencia_frente` varchar(500) DEFAULT NULL,
   `aprobado` tinyint(1) DEFAULT '0',
   `estado_aprobacion` enum('pendiente','aprobado','rechazado') DEFAULT 'pendiente',
+  `motivo_rechazo` varchar(500) DEFAULT NULL,
   `calificacion_promedio` decimal(3,2) DEFAULT '0.00',
   `total_calificaciones` int DEFAULT '0',
   `creado_en` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `actualizado_en` timestamp NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `detalles_conductor`
+--
+
+INSERT INTO `detalles_conductor` (`id`, `usuario_id`, `numero_licencia`, `vencimiento_licencia`, `tipo_vehiculo`, `marca_vehiculo`, `modelo_vehiculo`, `ano_vehiculo`, `color_vehiculo`, `placa_vehiculo`, `aseguradora`, `numero_poliza_seguro`, `vencimiento_seguro`, `foto_licencia_reverso`, `foto_licencia_frente`, `aprobado`, `estado_aprobacion`, `motivo_rechazo`, `calificacion_promedio`, `total_calificaciones`, `creado_en`, `actualizado_en`) VALUES
+(1, 4, '432424', '2027-01-31', 'motocicleta', 'toyota', 'bac', 2025, 'Blanco', 'h234', '4324', '434324', '2027-01-31', 'uploads/conductores/4/licencia_reverso_1769717087.jpg', 'uploads/conductores/4/licencia_frente_1769717087.jpg', 1, 'aprobado', NULL, '0.00', 0, '2026-01-29 20:04:46', '2026-01-29 20:25:32');
 
 -- --------------------------------------------------------
 
@@ -259,6 +269,42 @@ CREATE TABLE `solicitudes_servicio` (
   `motivo_cancelacion` varchar(500) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+--
+-- Dumping data for table `solicitudes_servicio`
+--
+
+INSERT INTO `solicitudes_servicio` (`id`, `uuid_solicitud`, `cliente_id`, `tipo_servicio`, `ubicacion_recogida_id`, `ubicacion_destino_id`, `latitud_recogida`, `longitud_recogida`, `direccion_recogida`, `latitud_destino`, `longitud_destino`, `direccion_destino`, `distancia_estimada`, `tiempo_estimado`, `estado`, `solicitado_en`, `aceptado_en`, `recogido_en`, `entregado_en`, `completado_en`, `cancelado_en`, `motivo_cancelacion`) VALUES
+(1, '7b52299f-bb17-4609-940f-15d5d884688a', 5, 'transporte', NULL, NULL, '6.25461830', '-75.53955670', '62 - 191, Carrera 18B, Llanaditas, Comuna 8 - Villa Hermosa, Perímetro Urbano Medellín, Medellín, Valle de Aburrá, Antioquia, RAP del Agua y la Montaña, 050011, Colombia', '6.15767810', '-75.64338780', 'La Estrella, Valle de Aburrá, Antioquia, RAP del Agua y la Montaña, 055460, Colombia', '20.82', 34, 'pendiente', '2026-01-30 03:14:31', NULL, NULL, NULL, NULL, NULL, NULL),
+(2, 'c149241a-d56c-4a11-8bf9-8780d6a8a512', 5, 'transporte', NULL, NULL, '6.25461830', '-75.53955670', '62 - 191, Carrera 18B, Llanaditas, Comuna 8 - Villa Hermosa, Perímetro Urbano Medellín, Medellín, Valle de Aburrá, Antioquia, RAP del Agua y la Montaña, 050011, Colombia', '6.15767810', '-75.64338780', 'La Estrella, Valle de Aburrá, Antioquia, RAP del Agua y la Montaña, 055460, Colombia', '20.82', 34, 'pendiente', '2026-01-30 03:15:54', NULL, NULL, NULL, NULL, NULL, NULL),
+(3, '54f9f59a-d7f5-4b65-9673-36e4dc783612', 5, 'transporte', NULL, NULL, '6.25461830', '-75.53955670', '62 - 191, Carrera 18B, Llanaditas, Comuna 8 - Villa Hermosa, Perímetro Urbano Medellín, Medellín, Valle de Aburrá, Antioquia, RAP del Agua y la Montaña, 050011, Colombia', '6.15767810', '-75.64338780', 'La Estrella, Valle de Aburrá, Antioquia, RAP del Agua y la Montaña, 055460, Colombia', '20.82', 34, 'pendiente', '2026-01-30 03:19:05', NULL, NULL, NULL, NULL, NULL, NULL),
+(4, '6a6b3b56-5f83-4b0a-beaf-8db0af3ca57c', 5, 'transporte', NULL, NULL, '6.25461830', '-75.53955670', 'Cargando ubicación...', '6.15767810', '-75.64338780', 'La Estrella, Valle de Aburrá, Antioquia, RAP del Agua y la Montaña, 055460, Colombia', '20.82', 34, 'pendiente', '2026-01-30 03:23:12', NULL, NULL, NULL, NULL, NULL, NULL),
+(5, '6f155bc5-197f-4ba8-ab07-f9fec60f2bfe', 5, 'transporte', NULL, NULL, '6.25461830', '-75.53955670', '62 - 191, Carrera 18B, Llanaditas, Comuna 8 - Villa Hermosa, Perímetro Urbano Medellín, Medellín, Valle de Aburrá, Antioquia, RAP del Agua y la Montaña, 050011, Colombia', '6.15767810', '-75.64338780', 'La Estrella, Valle de Aburrá, Antioquia, RAP del Agua y la Montaña, 055460, Colombia', '20.82', 34, 'pendiente', '2026-01-30 03:24:40', NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `tarifas`
+--
+
+CREATE TABLE `tarifas` (
+  `id` int NOT NULL,
+  `tipo_vehiculo` varchar(50) NOT NULL,
+  `tarifa_base` decimal(10,2) DEFAULT '0.00',
+  `tarifa_km` decimal(10,2) DEFAULT '0.00',
+  `tarifa_min` decimal(10,2) DEFAULT '0.00',
+  `comision` decimal(5,2) DEFAULT '0.00',
+  `creado_en` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `actualizado_en` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Dumping data for table `tarifas`
+--
+
+INSERT INTO `tarifas` (`id`, `tipo_vehiculo`, `tarifa_base`, `tarifa_km`, `tarifa_min`, `comision`, `creado_en`, `actualizado_en`) VALUES
+(1, 'motocicleta', '3000.00', '800.00', '100.00', '15.00', '2026-01-30 01:43:16', '2026-01-30 01:48:12'),
+(2, 'carro', '3500.00', '1200.00', '200.00', '20.00', '2026-01-30 01:43:16', '2026-01-30 01:43:16');
+
 -- --------------------------------------------------------
 
 --
@@ -341,10 +387,11 @@ CREATE TABLE `usuarios` (
 --
 
 INSERT INTO `usuarios` (`id`, `uuid`, `nombre`, `apellido`, `email`, `telefono`, `hash_contrasena`, `tipo_usuario`, `url_imagen_perfil`, `fecha_nacimiento`, `verificado`, `activo`, `creado_en`, `actualizado_en`, `ultimo_acceso_en`) VALUES
-(1, 'user_68daf618780e50.65802566', 'braian', 'oquendo', 'braianoquen@gmail.com', '3013636902', '$2y$10$H2Un4DmxCsM6XOGA1fiX8.5VB42Z9v8uwqERrGBms83dk2CQVQKnO', 'cliente', NULL, NULL, 0, 1, '2025-09-29 21:11:52', NULL, NULL),
+(1, 'user_68daf618780e50.65802566', 'braian', 'oquendo', 'braianoquen@gmail.com', '3013636902', '$2y$10$H2Un4DmxCsM6XOGA1fiX8.5VB42Z9v8uwqERrGBms83dk2CQVQKnO', 'administrador', NULL, NULL, 0, 1, '2025-09-29 21:11:52', NULL, NULL),
 (2, 'user_68e44706c14db4.53994811', 'braian890', 'oquendo', 'braian890@gmail.com', '32323232', '$2y$10$NB9S4hWQLrK7HhTjc9yneu9RTb6otip3dtZ1muEgukWWLKcSpxRF6', 'cliente', NULL, NULL, 0, 1, '2025-10-06 22:47:34', NULL, NULL),
 (3, 'user_68e44d12079086.97442308', 'braianoquen79', 'oquendo', 'braianoquen79@gmail.com', '34343434', '$2y$10$6LhMx5vHi.3LrrM/EjFjw.ZztZWhhGQgqf1sD76h2RtJ4B7nN/sjC', 'cliente', NULL, NULL, 0, 1, '2025-10-06 23:13:22', NULL, NULL),
-(4, 'user_697baef85a9e91.65860958', 'braianoquendurango', 'oquendo', 'braianoquendurango@gmail.com', '435534', '$2y$10$g5wGaB2WHR1f7HmjFrpdluz.UGCBpjNpxxxAKTjLTkvetk/gASKd2', 'cliente', NULL, NULL, 0, 1, '2026-01-29 19:03:20', NULL, NULL);
+(4, 'user_697baef85a9e91.65860958', 'braianoquendurango', 'oquendo', 'braianoquendurango@gmail.com', '435534', '$2y$10$g5wGaB2WHR1f7HmjFrpdluz.UGCBpjNpxxxAKTjLTkvetk/gASKd2', 'conductor', NULL, NULL, 0, 1, '2026-01-29 19:03:20', '2026-01-29 20:25:32', NULL),
+(5, 'user_697c0fad2329f0.91705759', 'braianoquen2', 'oquendo', 'braianoquen2@gmail.com', '435353', '$2y$10$EYIZRUV4ztDKN6N9gwrvze08/nVKDuukahqf2GUVIMcyn.66uZ1PK', 'cliente', NULL, NULL, 0, 1, '2026-01-30 01:55:57', NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -543,6 +590,13 @@ ALTER TABLE `solicitudes_servicio`
   ADD KEY `idx_solicitudes_fecha` (`solicitado_en`);
 
 --
+-- Indexes for table `tarifas`
+--
+ALTER TABLE `tarifas`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `tipo_vehiculo` (`tipo_vehiculo`);
+
+--
 -- Indexes for table `transacciones`
 --
 ALTER TABLE `transacciones`
@@ -611,7 +665,7 @@ ALTER TABLE `calificaciones`
 -- AUTO_INCREMENT for table `detalles_conductor`
 --
 ALTER TABLE `detalles_conductor`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `detalles_paquete`
@@ -653,7 +707,13 @@ ALTER TABLE `reglas_precios`
 -- AUTO_INCREMENT for table `solicitudes_servicio`
 --
 ALTER TABLE `solicitudes_servicio`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
+
+--
+-- AUTO_INCREMENT for table `tarifas`
+--
+ALTER TABLE `tarifas`
+  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `transacciones`
@@ -671,7 +731,7 @@ ALTER TABLE `ubicaciones_usuario`
 -- AUTO_INCREMENT for table `usuarios`
 --
 ALTER TABLE `usuarios`
-  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `id` bigint UNSIGNED NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `verification_codes`

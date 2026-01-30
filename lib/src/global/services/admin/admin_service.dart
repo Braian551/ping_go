@@ -414,4 +414,74 @@ class AdminService {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  /// Obtener tarifas
+  static Future<Map<String, dynamic>> getRates() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/manage_rates.php'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error en getRates: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Actualizar tarifa
+  static Future<Map<String, dynamic>> updateRate({
+    required String tipoVehiculo,
+    required double base,
+    required double km,
+    required double min,
+    required double comision,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/manage_rates.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'tipo_vehiculo': tipoVehiculo,
+          'tarifa_base': base,
+          'tarifa_km': km,
+          'tarifa_min': min,
+          'comision': comision,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error en updateRate: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Resetear tarifas a COP
+  static Future<Map<String, dynamic>> resetRates() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/force_update_rates.php'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error en resetRates: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }
