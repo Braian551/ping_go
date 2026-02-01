@@ -1,4 +1,5 @@
 import 'dart:ui';
+import 'package:ping_go/src/core/config/app_config.dart';
 import '../../../../routes/route_names.dart';
 import 'package:flutter/material.dart';
 import 'package:ping_go/src/widgets/auth_wrapper.dart';
@@ -9,6 +10,8 @@ import 'package:shimmer/shimmer.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'edit_profile_screen.dart';
+
 class HomeUserScreen extends StatefulWidget {
   const HomeUserScreen({super.key});
 
@@ -18,6 +21,7 @@ class HomeUserScreen extends StatefulWidget {
 
 class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStateMixin {
   String? _userName;
+  Map<String, dynamic>? _currentUser;
   String? _conductorStatus; // 'pendiente', 'aprobado', 'rechazado', or null
   bool _loading = true;
   int _selectedIndex = 0;
@@ -152,6 +156,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
           if (mounted) {
             setState(() {
               _userName = name ?? 'Usuario';
+              _currentUser = user; 
               _conductorStatus = status;
               _loading = false;
             });
@@ -188,6 +193,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
               if (mounted) {
                 setState(() {
                   _userName = name ?? 'Usuario';
+                  _currentUser = user;
                   _conductorStatus = status;
                   _loading = false;
                 });
@@ -604,34 +610,67 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
             children: [
               Stack(
                 children: [
+                  // Profile Image
                   Container(
                     width: 100,
                     height: 100,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: const Color(0xFFFFFF00).withOpacity(0.1),
+                      image: (_currentUser != null && 
+                              _currentUser!['url_imagen_perfil'] != null)
+                          ? DecorationImage(
+                              image: NetworkImage(
+                                // Simple logic to resolve URL - adjust based on your AppConfig
+                                _currentUser!['url_imagen_perfil'].startsWith('http') 
+                                  ? _currentUser!['url_imagen_perfil']
+                                  : '${AppConfig.baseUrl}/${_currentUser!['url_imagen_perfil'].replaceAll('//', '/')}'
+                              ),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
                     ),
-                    child: Center(
-                      child: Text(
-                        _userName != null && _userName!.isNotEmpty ? _userName![0].toUpperCase() : 'U',
-                        style: const TextStyle(
-                          color: Color(0xFFFFFF00),
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                    child: (_currentUser == null || _currentUser!['url_imagen_perfil'] == null)
+                        ? Center(
+                            child: Text(
+                              _userName != null && _userName!.isNotEmpty ? _userName![0].toUpperCase() : 'U',
+                              style: const TextStyle(
+                                color: Color(0xFFFFFF00),
+                                fontSize: 40,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          )
+                        : null,
                   ),
+                  // Edit Button
                   Positioned(
                     bottom: 0,
                     right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: const BoxDecoration(
-                        color: Color(0xFFFFFF00),
-                        shape: BoxShape.circle,
+                    child: GestureDetector(
+                      onTap: () async {
+                        if (_currentUser != null) {
+                           final result = await Navigator.push(
+                             context,
+                             MaterialPageRoute(
+                               builder: (context) => EditProfileScreen(user: _currentUser!),
+                             ),
+                           );
+                           if (result == true) {
+                             // Reload data if updated
+                             setState(() => _loading = true);
+                             _loadUserData();
+                           }
+                        }
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(
+                          color: Color(0xFFFFFF00),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.edit, color: Colors.black, size: 16),
                       ),
-                      child: const Icon(Icons.edit, color: Colors.black, size: 16),
                     ),
                   ),
                 ],

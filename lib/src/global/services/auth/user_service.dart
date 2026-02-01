@@ -357,4 +357,65 @@ class UserService {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  static Future<Map<String, dynamic>> updateProfileInfo({
+    required int userId,
+    String? name,
+    String? lastName,
+    String? phone,
+    String? imagePath, // Path local de la imagen seleccionada
+    bool deleteImage = false,
+  }) async {
+    try {
+      final uri = Uri.parse('${AppConfig.authServiceUrl}/update_profile_info.php');
+      final request = http.MultipartRequest('POST', uri);
+
+      request.fields['userId'] = userId.toString();
+      if (name != null) request.fields['nombre'] = name;
+      if (lastName != null) request.fields['apellido'] = lastName;
+      if (phone != null) request.fields['telefono'] = phone;
+      if (deleteImage) request.fields['deleteImage'] = 'true';
+
+      if (imagePath != null && !deleteImage) {
+        request.files.add(await http.MultipartFile.fromPath('image', imagePath));
+      }
+
+      print('Sending update profile request for userId: $userId');
+      print('Fields: nombre=$name, apellido=$lastName, telefono=$phone');
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('Response status: ${response.statusCode}');
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        
+        // Si hay éxito y nos devuelve el usuario actualizado, actualizamos la sesión local
+        if (data['success'] == true && data['user'] != null) {
+          await saveSession(Map<String, dynamic>.from(data['user']));
+        }
+        
+        return data;
+      }
+
+      // Try to parse error response
+      try {
+        final errorData = jsonDecode(response.body) as Map<String, dynamic>;
+        return {
+          'success': false, 
+          'message': errorData['message'] ?? 'Error del servidor: ${response.statusCode}'
+        };
+      } catch (_) {
+        return {
+          'success': false, 
+          'message': 'Error del servidor: ${response.statusCode}'
+        };
+      }
+    } catch (e) {
+      print('Error actualizando perfil: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }

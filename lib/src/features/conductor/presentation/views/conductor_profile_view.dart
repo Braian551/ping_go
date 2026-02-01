@@ -1,12 +1,20 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:ping_go/src/core/config/app_config.dart';
+import 'package:ping_go/src/features/user/presentation/screens/edit_profile_screen.dart';
 import 'package:ping_go/src/global/services/auth/user_service.dart';
 import 'package:ping_go/src/routes/route_names.dart';
+import 'package:ping_go/src/features/conductor/presentation/screens/conductor_earnings_screen.dart';
 
 class ConductorProfileView extends StatelessWidget {
   final Map<String, dynamic> conductorUser;
+  final VoidCallback? onProfileUpdate;
 
-  const ConductorProfileView({super.key, required this.conductorUser});
+  const ConductorProfileView({
+    super.key, 
+    required this.conductorUser,
+    this.onProfileUpdate,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -20,6 +28,80 @@ class ConductorProfileView extends StatelessWidget {
           const SizedBox(height: 24),
           _buildProfileMenu(context),
         ],
+      ),
+    );
+  }
+
+  String _getCorrectImageUrl(String path) {
+    if (path.startsWith('http')) return path;
+    
+    // Normalize path
+    String cleanPath = path;
+    if (!cleanPath.startsWith('uploads/')) {
+      cleanPath = 'uploads/$cleanPath';
+    }
+
+    final baseUrl = AppConfig.baseUrl;
+    String rootUrl = baseUrl;
+    // Go up one level from backend-deploy to reach uploads folder
+    if (baseUrl.endsWith('/backend-deploy')) {
+      rootUrl = baseUrl.substring(0, baseUrl.length - '/backend-deploy'.length);
+    } else if (baseUrl.endsWith('backend-deploy/')) {
+       rootUrl = baseUrl.substring(0, baseUrl.length - 'backend-deploy/'.length); 
+    }
+    
+    return '$rootUrl/$cleanPath';
+  }
+
+  Widget _buildProfileAvatar() {
+    final imageUrl = conductorUser['url_imagen_perfil'];
+    final hasImage = imageUrl != null && imageUrl.toString().isNotEmpty;
+    
+    return Container(
+      width: 100,
+      height: 100,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: const Color(0xFFFFFF00).withOpacity(0.1),
+        border: Border.all(
+          color: const Color(0xFFFFFF00).withOpacity(0.3),
+          width: 2,
+        ),
+      ),
+      child: ClipOval(
+        child: hasImage
+            ? Image.network(
+                _getCorrectImageUrl(imageUrl.toString()),
+                fit: BoxFit.cover,
+                width: 100,
+                height: 100,
+                errorBuilder: (context, error, stackTrace) => _buildInitialAvatar(),
+                loadingBuilder: (context, child, loadingProgress) {
+                  if (loadingProgress == null) return child;
+                  return Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        const Color(0xFFFFFF00).withOpacity(0.5),
+                      ),
+                    ),
+                  );
+                },
+              )
+            : _buildInitialAvatar(),
+      ),
+    );
+  }
+
+  Widget _buildInitialAvatar() {
+    return Center(
+      child: Text(
+        (conductorUser['nombre'] ?? 'C')[0].toUpperCase(),
+        style: const TextStyle(
+          color: Color(0xFFFFFF00),
+          fontSize: 40,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }
@@ -41,24 +123,7 @@ class ConductorProfileView extends StatelessWidget {
           ),
           child: Column(
             children: [
-              Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFFFFFF00).withOpacity(0.1),
-                ),
-                child: Center(
-                  child: Text(
-                    (conductorUser['nombre'] ?? 'C')[0].toUpperCase(),
-                    style: const TextStyle(
-                      color: Color(0xFFFFFF00),
-                      fontSize: 40,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
+              _buildProfileAvatar(),
               const SizedBox(height: 16),
               Text(
                 '${conductorUser['nombre']} ${conductorUser['apellido'] ?? ''}',
@@ -85,11 +150,28 @@ class ConductorProfileView extends StatelessWidget {
   Widget _buildProfileMenu(BuildContext context) {
     return Column(
       children: [
-        _buildMenuItem(context, Icons.person_outline_rounded, 'Editar Perfil', () {}),
+        _buildMenuItem(context, Icons.person_outline_rounded, 'Editar Perfil', () async {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+               builder: (context) => EditProfileScreen(user: conductorUser),
+            ),
+          );
+          if (result == true && onProfileUpdate != null) {
+            onProfileUpdate!();
+          }
+        }),
         const SizedBox(height: 12),
         _buildMenuItem(context, Icons.history_rounded, 'Historial de Viajes', () {}),
         const SizedBox(height: 12),
-         _buildMenuItem(context, Icons.attach_money_rounded, 'Información de Pago', () {}),
+        _buildMenuItem(context, Icons.attach_money_rounded, 'Información de Pago', () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+               builder: (context) => ConductorEarningsScreen(conductorUser: conductorUser),
+            ),
+          );
+        }),
         const SizedBox(height: 12),
         _buildMenuItem(context, Icons.settings_outlined, 'Configuración', () {}),
         const SizedBox(height: 12),

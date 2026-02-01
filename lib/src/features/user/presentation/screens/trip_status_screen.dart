@@ -142,67 +142,113 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
+                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 10)],
                 ),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (_trip!['conductor'] != null) ...[
+                    if (_trip != null && _trip!['conductor'] != null) ...[
+                      // Status Header
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
+                        decoration: BoxDecoration(
+                          color: _getStatusColor(_trip!['estado']),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _getStatusText(_trip!['estado']),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      
+                      // Driver Info
                       Row(
                         children: [
-                          CircleAvatar(backgroundImage: _trip!['conductor']['foto'] != null ? NetworkImage(_trip!['conductor']['foto']) : null),
+                          CircleAvatar(
+                            radius: 30,
+                            backgroundImage: _trip!['conductor']['foto'] != null 
+                              ? NetworkImage(_trip!['conductor']['foto']) 
+                              : null,
+                            child: _trip!['conductor']['foto'] == null ? const Icon(Icons.person) : null,
+                          ),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('${_trip!['conductor']['nombre'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                Text('ETA: ${_trip!['conductor']['eta_minutos'] ?? '-'} min'),
+                                Text(
+                                  '${_trip!['conductor']['nombre'] ?? ''}',
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                                ),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.star, size: 16, color: Colors.amber),
+                                    Text(' ${_trip!['conductor']['calificacion'] ?? '5.0'}'),
+                                    const SizedBox(width: 10),
+                                    Text('• ${_trip!['conductor']['placa'] ?? ''}', style: TextStyle(color: Colors.grey[600])),
+                                  ],
+                                ),
                               ],
                             ),
                           ),
-                          Text('${_trip!['distancia_km']} km'),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: ElevatedButton(
-                              onPressed: () async {
-                                // Confirm cancel
-                                final should = await showDialog<bool>(
-                                  context: context,
-                                  builder: (context) => AlertDialog(
-                                    title: const Text('Cancelar viaje'),
-                                    content: const Text('¿Deseas cancelar la solicitud?'),
-                                    actions: [
-                                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
-                                      ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Si')),
-                                    ],
-                                  ),
-                                );
-                                if (should == true) {
-                                  try {
-                                    final canceled = await TripRequestService.cancelTripRequest(_trip!['id']);
-                                    if (canceled) {
-                                      if (mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud cancelada')));
-                                        Navigator.pop(context);
-                                      }
-                                    }
-                                  } catch (e) {
-                                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error cancelando: $e')));
-                                  }
-                                }
-                              },
-                              child: const Text('Cancelar viaje'),
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                            ),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text(
+                                '${_trip!['conductor']['eta_minutos'] ?? '-'} min',
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                              ),
+                              const Text('ETA', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                            ],
                           ),
                         ],
                       ),
+                      
+                      const SizedBox(height: 16),
+                      
+                      // Cancel Button (Only if not already in trip)
+                      if (_canCancel(_trip!['estado']))
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () async {
+                            final should = await showDialog<bool>(
+                              context: context,
+                              builder: (context) => AlertDialog(
+                                title: const Text('Cancelar viaje'),
+                                content: const Text('¿Deseas cancelar la solicitud?'),
+                                actions: [
+                                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+                                  ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Si')),
+                                ],
+                              ),
+                            );
+                            if (should == true) {
+                               _cancelTrip();
+                            }
+                          },
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: const BorderSide(color: Colors.red),
+                          ),
+                          child: const Text('Cancelar viaje'),
+                        ),
+                      ),
                     ] else ...[
-                      const Text('Buscando conductor...')
+                      const Padding(
+                        padding: EdgeInsets.all(16.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(strokeWidth: 2),
+                            SizedBox(width: 16),
+                            Text('Buscando conductor cercano...'),
+                          ],
+                        ),
+                      )
                     ]
                   ],
                 ),
@@ -214,5 +260,43 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
         ],
       ),
     );
+  }
+  Color _getStatusColor(String? status) {
+    switch (status) {
+      case 'conductor_asignado': return Colors.blue.shade100;
+      case 'en_sitio': return const Color(0xFFFFD700); // Yellow
+      case 'en_transito':
+      case 'recogido': return Colors.green.shade100;
+      default: return Colors.grey.shade200;
+    }
+  }
+
+  String _getStatusText(String? status) {
+    switch (status) {
+      case 'conductor_asignado': return 'Conductor en camino';
+      case 'en_sitio': return '¡Tu conductor ha llegado!';
+      case 'en_transito':
+      case 'recogido': return 'En viaje hacia tu destino';
+      default: return 'Estado: $status';
+    }
+  }
+  
+  bool _canCancel(String? status) {
+    // Can cancel if driver hasn't picked up yet
+    return status == 'conductor_asignado' || status == 'en_sitio' || status == 'pendiente';
+  }
+  
+  Future<void> _cancelTrip() async {
+    try {
+        final canceled = await TripRequestService.cancelTripRequest(_trip!['id']);
+        if (canceled) {
+            if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Solicitud cancelada')));
+            Navigator.pop(context);
+            }
+        }
+    } catch (e) {
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error cancelando: $e')));
+    }
   }
 }

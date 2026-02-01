@@ -257,19 +257,16 @@ class _SearchingDriverScreenState extends State<SearchingDriverScreen> with Tick
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      Pulse(
-                        infinite: true,
-                        child: Container(
-                          width: 70,
-                          height: 70,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: const Color(0xFFFFD700).withOpacity(0.15),
-                            border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.5), width: 2),
-                          ),
-                          child: const Center(
-                            child: Icon(Icons.local_taxi, color: Color(0xFFFFD700), size: 35),
-                          ),
+                      Container(
+                        width: 70,
+                        height: 70,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFFFFD700).withOpacity(0.1),
+                          border: Border.all(color: const Color(0xFFFFD700).withOpacity(0.4), width: 1.5),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.local_taxi, color: Color(0xFFFFD700), size: 32),
                         ),
                       ),
                       const SizedBox(height: 20),

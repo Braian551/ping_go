@@ -24,7 +24,7 @@ class ConductorService {
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         if (data['success'] == true) {
-          return data;
+          return data['data'] as Map<String, dynamic>;
         }
       }
       return null;
@@ -62,31 +62,44 @@ class ConductorService {
     int limit = 20,
   }) async {
     try {
+      final url = '$baseUrl/get_historial.php?conductor_id=$conductorId&page=$page&limit=$limit';
+      print('DEBUG: getHistorialViajes URL: $url');
+      
       final response = await http.get(
-        Uri.parse('$baseUrl/get_historial.php?conductor_id=$conductorId&page=$page&limit=$limit'),
+        Uri.parse(url),
         headers: {'Accept': 'application/json'},
       );
+
+      print('DEBUG: getHistorialViajes status: ${response.statusCode}');
+      print('DEBUG: getHistorialViajes body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
         if (data['success'] == true) {
           return data;
         }
+        return {'success': false, 'viajes': [], 'total': 0, 'message': data['message'] ?? 'Error desconocido'};
       }
-      return {'success': false, 'viajes': [], 'total': 0};
+      return {'success': false, 'viajes': [], 'total': 0, 'message': 'Error del servidor: ${response.statusCode}'};
     } catch (e) {
       print('Error obteniendo historial de viajes: $e');
-      return {'success': false, 'viajes': [], 'total': 0};
+      return {'success': false, 'viajes': [], 'total': 0, 'message': e.toString()};
     }
   }
 
   /// Obtener estadísticas del conductor
   static Future<Map<String, dynamic>> getEstadisticas(int conductorId) async {
     try {
+      final url = '$baseUrl/get_estadisticas.php?conductor_id=$conductorId';
+      print('DEBUG: getEstadisticas URL: $url');
+      
       final response = await http.get(
-        Uri.parse('$baseUrl/get_estadisticas.php?conductor_id=$conductorId'),
+        Uri.parse(url),
         headers: {'Accept': 'application/json'},
       );
+
+      print('DEBUG: getEstadisticas status: ${response.statusCode}');
+      print('DEBUG: getEstadisticas body: ${response.body}');
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -100,6 +113,7 @@ class ConductorService {
       return {};
     }
   }
+
 
   /// Actualizar estado de disponibilidad del conductor
   static Future<bool> actualizarDisponibilidad({
@@ -148,8 +162,9 @@ class ConductorService {
     required int solicitudId,
   }) async {
     try {
+      // FIX: Changed url from aceptar_solicitud.php to accept_assignment.php
       final response = await http.post(
-        Uri.parse('$baseUrl/aceptar_solicitud.php'),
+        Uri.parse('$baseUrl/accept_assignment.php'),
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
@@ -160,13 +175,70 @@ class ConductorService {
         }),
       );
 
+      print('Accept response (${response.statusCode}): ${response.body}');
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      
       if (response.statusCode == 200) {
-        return jsonDecode(response.body) as Map<String, dynamic>;
+        return data;
       }
-      return {'success': false, 'message': 'Error del servidor'};
+      // Return actual error message from server
+      return {'success': false, 'message': data['message'] ?? 'Error del servidor (${response.statusCode})'};
     } catch (e) {
       print('Error aceptando solicitud: $e');
       return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Rechazar una asignación
+  static Future<bool> rejectAssignment({
+    required int conductorId,
+    required int solicitudId,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/reject_assignment.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'conductor_id': conductorId,
+          'solicitud_id': solicitudId,
+        }),
+      );
+
+      print('Reject response: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      }
+      return false;
+    } catch (e) {
+      print('Error rechazando solicitud: $e');
+      return false;
+    }
+  }
+
+  /// Obtener lista de solicitudes disponibles (incluyendo rechazadas si siguen activas)
+  static Future<List<Map<String, dynamic>>> getAvailableRequests(int conductorId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/get_available_requests.php?conductor_id=$conductorId'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['requests'] != null) {
+          return List<Map<String, dynamic>>.from(data['requests']);
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error buscando solicitudes disponibles: $e');
+      return [];
     }
   }
 
@@ -337,6 +409,92 @@ class ConductorService {
     } catch (e) {
       print('Error subiendo documento $type: $e');
       return false;
+    }
+  }
+  
+  /// Buscar solicitudes pendientes
+  static Future<Map<String, dynamic>?> getPendingAssignments(int conductorId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/get_pending_assignments.php?conductor_id=$conductorId'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['hay_solicitud'] == true) {
+          return data['solicitud'];
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error buscando asignaciones: $e');
+      return null;
+    }
+  }
+
+  /// Actualizar estado del viaje (llegado, iniciado, finalizado)
+  static Future<bool> updateTripStatus({
+    required int solicitudId,
+    required String estado, // 'en_sitio', 'en_progreso', 'completada'
+    int? conductorId,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/trips/update_trip_status.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'solicitud_id': solicitudId,
+          'estado': estado,
+          if (conductorId != null) 'conductor_id': conductorId,
+        }),
+      );
+
+      print('UpdateTripStatus Response (${response.statusCode}): ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['success'] == true;
+      }
+      print('UpdateTripStatus Failed: Status ${response.statusCode}, Body: ${response.body}');
+      return false;
+    } catch (e) {
+      print('Error actualizando estado viaje: $e');
+      return false;
+    }
+  }
+
+  /// Obtener resumen final del viaje y cálculo de tarifa
+  static Future<Map<String, dynamic>?> getTripSummary({
+    required int solicitudId,
+    required int conductorId,
+    required double distanciaKm,
+    required int duracionSegundos,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.baseUrl}/trips/get_trip_summary.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'solicitud_id': solicitudId,
+          'conductor_id': conductorId,
+          'distancia_real': distanciaKm,
+          'duracion_real': duracionSegundos,
+        }),
+      );
+
+      print('TripSummary Response (${response.statusCode}): ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return data;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error obteniendo resumen de viaje: $e');
+      return null;
     }
   }
 }
