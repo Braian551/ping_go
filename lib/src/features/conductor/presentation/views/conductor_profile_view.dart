@@ -5,6 +5,7 @@ import 'package:ping_go/src/features/user/presentation/screens/edit_profile_scre
 import 'package:ping_go/src/global/services/auth/user_service.dart';
 import 'package:ping_go/src/routes/route_names.dart';
 import 'package:ping_go/src/features/conductor/presentation/screens/conductor_earnings_screen.dart';
+import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
 
 class ConductorProfileView extends StatelessWidget {
   final Map<String, dynamic> conductorUser;
@@ -173,9 +174,13 @@ class ConductorProfileView extends StatelessWidget {
           );
         }),
         const SizedBox(height: 12),
-        _buildMenuItem(context, Icons.settings_outlined, 'Configuración', () {}),
+        _buildMenuItem(context, Icons.settings_outlined, 'Configuración', () {
+          CustomSnackbar.showInfo(context, message: 'Función en desarrollo');
+        }),
         const SizedBox(height: 12),
-        _buildMenuItem(context, Icons.help_outline_rounded, 'Ayuda y Soporte', () {}),
+        _buildMenuItem(context, Icons.help_outline_rounded, 'Ayuda y Soporte', () {
+          CustomSnackbar.showInfo(context, message: 'Función en desarrollo');
+        }),
         const SizedBox(height: 24),
         _buildMenuItem(
           context, 

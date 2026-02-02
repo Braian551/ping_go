@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:ping_go/src/global/services/auth/user_service.dart';
 import 'package:ping_go/src/core/config/app_config.dart';
 import 'package:ping_go/src/features/user/services/trip_request_service.dart';
+import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
 
 /// Pantalla completa de perfil del usuario
 /// Incluye información personal, foto, ajustes y opciones
@@ -373,14 +374,14 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             icon: Icons.settings,
             title: 'Configuración',
             subtitle: 'Ajustes y preferencias',
-            onTap: () => Navigator.pushNamed(context, '/settings'),
+            onTap: () => CustomSnackbar.showInfo(context, message: 'Función en desarrollo'),
           ),
           const SizedBox(height: 12),
           _buildMenuItem(
             icon: Icons.help_outline,
             title: 'Ayuda y soporte',
             subtitle: 'Contáctanos o consulta FAQ',
-            onTap: () => Navigator.pushNamed(context, '/help'),
+            onTap: () => CustomSnackbar.showInfo(context, message: 'Función en desarrollo'),
           ),
           const SizedBox(height: 12),
           _buildMenuItem(

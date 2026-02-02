@@ -831,13 +831,13 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
         _buildProfileMenuItem(
           icon: Icons.settings,
           title: 'Configuración',
-          onTap: () => Navigator.pushNamed(context, '/settings'),
+          onTap: () => CustomSnackbar.showInfo(context, message: 'Función en desarrollo'),
         ),
         const SizedBox(height: 12),
         _buildProfileMenuItem(
           icon: Icons.help_outline,
           title: 'Ayuda y soporte',
-          onTap: () => Navigator.pushNamed(context, '/help'),
+          onTap: () => CustomSnackbar.showInfo(context, message: 'Función en desarrollo'),
         ),
         const SizedBox(height: 12),
         _buildProfileMenuItem(

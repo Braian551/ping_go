@@ -13,8 +13,12 @@ class TripDetailSheet extends StatelessWidget {
     final estado = trip['estado'] ?? 'desconocido';
     final costo = double.tryParse(trip['costo']?.toString() ?? '0') ?? 0.0;
     final fecha = trip['fecha'] ?? '';
-    final duracion = trip['duracion_real'] != null ? '${(int.parse(trip['duracion_real'].toString()) / 60).toStringAsFixed(0)} min' : '--';
-    final distancia = trip['distancia_real'] != null ? '${trip['distancia_real']} km' : '--';
+    final duracion = trip['duracion_real'] != null 
+        ? _formatDuration(int.tryParse(trip['duracion_real'].toString()) ?? 0) 
+        : '--';
+    final distancia = trip['distancia_real'] != null 
+        ? '${double.tryParse(trip['distancia_real'].toString())?.toStringAsFixed(1) ?? '0.0'} km' 
+        : '--';
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -245,6 +249,14 @@ class TripDetailSheet extends StatelessWidget {
       default:
         return Colors.grey;
     }
+  }
+
+  String _formatDuration(int seconds) {
+    if (seconds < 60) return '$seconds s';
+    int h = seconds ~/ 3600;
+    int m = (seconds % 3600) ~/ 60;
+    if (h > 0) return '$h h $m min';
+    return '$m min';
   }
 
   String _resolveUrl(String path) {

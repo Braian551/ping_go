@@ -234,7 +234,7 @@ class _ClientTripSummaryScreenState extends State<ClientTripSummaryScreen> {
             subtitle: Row(
               children: [
                  const Icon(Icons.star, size: 14, color: Colors.amber),
-                 Text(' ${conductor['calificacion'] ?? '5.0'}', style: const TextStyle(color: Colors.grey)),
+                 Text(' ${double.tryParse(conductor['calificacion']?.toString() ?? '0') == 0 ? '5.0' : conductor['calificacion']}', style: const TextStyle(color: Colors.grey)),
                  const SizedBox(width: 10),
                  Text(conductor['placa'] ?? '', style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
               ],
