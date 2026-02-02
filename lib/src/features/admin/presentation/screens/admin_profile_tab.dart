@@ -38,8 +38,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           const SizedBox(height: 30),
           _buildInfoSection(adminName, adminEmail, adminPhone),
           const SizedBox(height: 24),
-          _buildQuickActions(),
-          const SizedBox(height: 24),
           _buildSettingsSection(),
           const SizedBox(height: 24),
           _buildLogoutButton(),
@@ -231,111 +229,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
     );
   }
 
-  Widget _buildQuickActions() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Acciones rápidas',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Expanded(
-              child: _buildQuickActionCard(
-                icon: Icons.notifications_outlined,
-                title: 'Notificaciones',
-                count: '5',
-                color: const Color(0xFFf093fb),
-                onTap: () {
-                  _showComingSoon();
-                },
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildQuickActionCard(
-                icon: Icons.security_rounded,
-                title: 'Seguridad',
-                count: '',
-                color: const Color(0xFF667eea),
-                onTap: () {
-                  _showComingSoon();
-                },
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQuickActionCard({
-    required IconData icon,
-    required String title,
-    required String count,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: color.withOpacity(0.3),
-                width: 1.5,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: Icon(icon, color: color, size: 28),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                if (count.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    count,
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
-                      fontSize: 14,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 
   Widget _buildSettingsSection() {
     return Column(
@@ -362,14 +255,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
         _buildSettingItem(
           icon: Icons.lock_outline_rounded,
           title: 'Cambiar contraseña',
-          onTap: () {
-            _showComingSoon();
-          },
-        ),
-        const SizedBox(height: 12),
-        _buildSettingItem(
-          icon: Icons.notifications_outlined,
-          title: 'Preferencias de notificaciones',
           onTap: () {
             _showComingSoon();
           },

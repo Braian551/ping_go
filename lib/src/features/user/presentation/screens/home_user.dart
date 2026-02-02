@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:ping_go/src/core/config/app_config.dart';
 import '../../../../routes/route_names.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import '../widgets/trip_detail_sheet.dart';
 import 'package:ping_go/src/widgets/auth_wrapper.dart';
 import 'package:ping_go/src/global/services/auth/user_service.dart';
@@ -13,6 +14,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/trip_request_service.dart';
 
 import 'edit_profile_screen.dart';
+import 'payment_methods_screen.dart';
 
 class HomeUserScreen extends StatefulWidget {
   const HomeUserScreen({super.key});
@@ -27,6 +29,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
   String? _conductorStatus; // 'pendiente', 'aprobado', 'rechazado', or null
   bool _loading = true;
   int _selectedIndex = 0;
+  int _totalViajes = 0;
   late AnimationController _animationController;
   late AnimationController _navAnimationController;
   late Animation<double> _fadeAnimation;
@@ -155,16 +158,33 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
              } catch (_) {}
           }
 
-          if (mounted) {
-            setState(() {
-              _userName = name ?? 'Usuario';
-              _currentUser = user; 
-              _conductorStatus = status;
-              _loading = false;
-            });
-            _animationController.forward();
-            return;
-          }
+            if (mounted) {
+              setState(() {
+                _userName = name ?? 'Usuario';
+                _currentUser = user; 
+                _conductorStatus = status;
+              });
+              
+              // Cargar estadísticas
+              if (id != null) {
+                try {
+                  final stats = await TripRequestService.getUserStats(id);
+                  if (mounted) {
+                    setState(() {
+                      _totalViajes = stats['total_viajes'] ?? 0;
+                      _loading = false;
+                    });
+                  }
+                } catch (_) {
+                   if (mounted) setState(() => _loading = false);
+                }
+              } else {
+                 if (mounted) setState(() => _loading = false);
+              }
+
+              _animationController.forward();
+              return;
+            }
         }
       }
     } catch (_) {}
@@ -237,6 +257,19 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
     );
   }
 
+  Future<void> _loadUserStats() async {
+    if (_currentUser == null || _currentUser!['id'] == null) return;
+    try {
+      final id = int.tryParse(_currentUser!['id'].toString()) ?? 0;
+      final stats = await TripRequestService.getUserStats(id);
+      if (mounted) {
+        setState(() {
+          _totalViajes = stats['total_viajes'] ?? 0;
+        });
+      }
+    } catch (_) {}
+  }
+
   PreferredSizeWidget _buildModernAppBar() {
     return AppBar(
       backgroundColor: Colors.transparent,
@@ -289,35 +322,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
           ),
         ],
       ),
-      actions: [
-        Container(
-          margin: const EdgeInsets.only(right: 8),
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: Colors.white.withOpacity(0.1),
-          ),
-          child: IconButton(
-            icon: Stack(
-              children: [
-                const Icon(Icons.notifications_outlined, color: Colors.white, size: 24),
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFFFFFF00),
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: const BoxConstraints(minWidth: 8, minHeight: 8),
-                  ),
-                ),
-              ],
-            ),
-            onPressed: () {},
-          ),
-        ),
-      ],
+      actions: [],
     );
   }
 
@@ -545,7 +550,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                       ),
                     ),
                     Text(
-                      '\$${costo.toStringAsFixed(0)}',
+                      '\$${_formatCurrency(costo)}',
                       style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                   ],
@@ -609,104 +614,22 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
     );
   }
 
+  String _formatCurrency(dynamic amount) {
+    if (amount == null) return '0';
+    final formatter = NumberFormat.currency(
+      locale: 'es_CO',
+      symbol: '',
+      decimalDigits: 0,
+    );
+    return formatter.format(amount).trim();
+  }
+
   String _resolveUrl(String path) {
     return AppConfig.resolveImageUrl(path);
   }
 
   Widget _buildPaymentsTab() {
-    return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 20),
-            const Text(
-              'Métodos de pago',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A).withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1.5,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.credit_card,
-                          color: Colors.white.withOpacity(0.3),
-                          size: 48,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'No hay métodos de pago',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Agrega un método de pago para continuar',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.4),
-                          fontSize: 14,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: 20),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/payment_methods');
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFFF00),
-                          foregroundColor: Colors.black,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const Text(
-                          'Agregar método de pago',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    return const PaymentMethodsScreen(isTab: true);
   }
 
   Widget _buildProfileTab() {
@@ -838,7 +761,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
           child: _buildStatCard(
             icon: Icons.route,
             title: 'Viajes',
-            value: '0',
+            value: '$_totalViajes',
             color: const Color(0xFFFFFF00),
           ),
         ),
@@ -1024,8 +947,6 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                 const SizedBox(height: 30),
                 _buildServiceCards(),
                 const SizedBox(height: 30),
-                _buildQuickActions(),
-                const SizedBox(height: 30),
                 _buildRecentActivity(),
                 const SizedBox(height: 20),
               ],
@@ -1163,7 +1084,11 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                 title: 'Envío',
                 subtitle: 'Entrega express',
                 onTap: () {
-                  Navigator.pushNamed(context, RouteNames.selectDestination);
+                  CustomSnackbar.show(
+                    context, 
+                    message: 'Función en desarrollo',
+                    type: SnackbarType.info,
+                  );
                 },
               ),
             ),
@@ -1225,68 +1150,198 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Actividad reciente',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -0.5,
-          ),
-        ),
-        const SizedBox(height: 16),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A).withOpacity(0.6),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
-                  width: 1.5,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Actividad reciente',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _selectedIndex = 1; // Ir a la pestaña de historial
+                });
+              },
+              child: const Text(
+                'Ver todo',
+                style: TextStyle(
+                  color: Color(0xFFFFFF00),
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
-              child: Column(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: _currentUser != null && _currentUser!['id'] != null
+              ? TripRequestService.getUserHistory(int.tryParse(_currentUser!['id'].toString()) ?? 0)
+              : Future.value([]),
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return _buildShimmerBox(height: 120, width: double.infinity);
+            }
+
+            final history = snapshot.data ?? [];
+            if (history.isEmpty) {
+              return ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                  child: Container(
+                    padding: const EdgeInsets.all(32),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.05),
-                      shape: BoxShape.circle,
+                      color: const Color(0xFF1A1A1A).withOpacity(0.6),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: Colors.white.withOpacity(0.1),
+                        width: 1.5,
+                      ),
                     ),
-                    child: Icon(
-                      Icons.route,
-                      color: Colors.white.withOpacity(0.3),
-                      size: 48,
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.05),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.route,
+                            color: Colors.white.withOpacity(0.3),
+                            size: 48,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Sin actividad reciente',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.7),
+                            fontSize: 18,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Tus viajes y envíos aparecerán aquí',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.4),
+                            fontSize: 14,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Sin actividad reciente',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
+                ),
+              );
+            }
+
+            // Mostrar los últimos 2-3 items
+            final recentHistory = history.take(2).toList();
+            return Column(
+              children: recentHistory.map((trip) => _buildRecentActivityItem(trip)).toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecentActivityItem(Map<String, dynamic> trip) {
+    final estado = trip['estado'] ?? 'desconocido';
+    final fecha = trip['fecha'] ?? '';
+    final destino = trip['destino'] ?? 'Destino desconocido';
+    final costo = double.tryParse(trip['costo']?.toString() ?? '0') ?? 0.0;
+
+    Color statusColor = Colors.grey;
+    if (estado == 'completada' || estado == 'finalizado') statusColor = Colors.green;
+    else if (estado == 'cancelada') statusColor = Colors.red;
+    else if (estado == 'pendiente') statusColor = Colors.orange;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A).withOpacity(0.6),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(20),
+          onTap: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (context) => TripDetailSheet(trip: trip),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFF00).withOpacity(0.1),
+                    shape: BoxShape.circle,
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Tus viajes y envíos aparecerán aquí',
-                    style: TextStyle(
-                      color: Colors.white.withOpacity(0.4),
-                      fontSize: 14,
-                    ),
-                    textAlign: TextAlign.center,
+                  child: const Icon(Icons.location_on_outlined, color: Color(0xFFFFFF00), size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        destino,
+                        style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        fecha,
+                        style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      '\$${_formatCurrency(costo)}',
+                      style: const TextStyle(color: Color(0xFFFFFF00), fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        estado.toUpperCase(),
+                        style: TextStyle(color: statusColor, fontSize: 9, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
         ),
-      ],
+      ),
     );
   }
 
@@ -1313,7 +1368,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                 children: [
                   _buildNavItem(0, Icons.home_rounded, 'Inicio'),
                   _buildNavItem(1, Icons.receipt_long_rounded, 'Pedidos'),
-                  _buildNavItem(2, Icons.credit_card_rounded, 'Pagos'),
+                  _buildNavItem(2, Icons.credit_card_rounded, 'Ganancias'),
                   _buildNavItem(3, Icons.person_rounded, 'Perfil'),
                 ],
               ),
@@ -1332,6 +1387,9 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
           setState(() => _selectedIndex = index);
           _navAnimationController.reset();
           _navAnimationController.forward();
+          if (index == 3) {
+            _loadUserStats();
+          }
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 300),

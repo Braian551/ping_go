@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:ping_go/src/core/config/app_config.dart';
 
 class TripDetailSheet extends StatelessWidget {
@@ -169,7 +170,7 @@ class TripDetailSheet extends StatelessWidget {
                       style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     Text(
-                      '\$${costo.toStringAsFixed(0)}',
+                      '\$${_formatCurrency(costo)}',
                       style: const TextStyle(color: Color(0xFFFFD700), fontSize: 24, fontWeight: FontWeight.bold),
                     ),
                   ],
@@ -218,6 +219,16 @@ class TripDetailSheet extends StatelessWidget {
         Text(value, style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold)),
       ],
     );
+  }
+
+  String _formatCurrency(dynamic amount) {
+    if (amount == null) return '0';
+    final formatter = NumberFormat.currency(
+      locale: 'es_CO',
+      symbol: '',
+      decimalDigits: 0,
+    );
+    return formatter.format(amount).trim();
   }
 
   Color _getStatusColor(String status) {

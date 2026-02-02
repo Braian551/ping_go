@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:ping_go/src/global/services/auth/user_service.dart';
 import 'package:ping_go/src/core/config/app_config.dart';
+import 'package:ping_go/src/features/user/services/trip_request_service.dart';
 
 /// Pantalla completa de perfil del usuario
 /// Incluye información personal, foto, ajustes y opciones
@@ -16,6 +17,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
   Map<String, dynamic>? _userData;
   Map<String, dynamic>? _locationData;
   bool _loading = true;
+  int _totalViajes = 0;
 
   @override
   void initState() {
@@ -32,11 +34,30 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
         
         final profile = await UserService.getProfile(userId: userId, email: email);
         if (profile != null && profile['success'] == true) {
-          setState(() {
-            _userData = profile['user'] as Map<String, dynamic>?;
-            _locationData = profile['location'] as Map<String, dynamic>?;
-            _loading = false;
-          });
+          final userData = profile['user'] as Map<String, dynamic>?;
+          if (mounted) {
+            setState(() {
+              _userData = userData;
+              _locationData = profile['location'] as Map<String, dynamic>?;
+            });
+
+            // Cargar estadísticas
+            if (userId != null) {
+              try {
+                final stats = await TripRequestService.getUserStats(userId);
+                if (mounted) {
+                  setState(() {
+                    _totalViajes = stats['total_viajes'] ?? 0;
+                    _loading = false;
+                  });
+                }
+              } catch (_) {
+                if (mounted) setState(() => _loading = false);
+              }
+            } else {
+              if (mounted) setState(() => _loading = false);
+            }
+          }
         }
       }
     } catch (e) {
@@ -243,7 +264,7 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
             child: _buildStatCard(
               icon: Icons.route,
               title: 'Viajes',
-              value: '24',
+              value: '$_totalViajes',
               color: const Color(0xFFFFFF00),
             ),
           ),

@@ -369,4 +369,24 @@ class TripRequestService {
       return [];
     }
   }
+
+  /// Obtener estadísticas del usuario (viajes, etc.)
+  static Future<Map<String, dynamic>> getUserStats(int userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/get_user_stats.php?usuario_id=$userId'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return data['stats'] ?? {};
+        }
+      }
+      return {};
+    } catch (e) {
+      print('Error getting user stats: $e');
+      return {};
+    }
+  }
 }

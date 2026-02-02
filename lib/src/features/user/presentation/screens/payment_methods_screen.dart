@@ -1,10 +1,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'package:ping_go/src/global/services/auth/user_service.dart';
 
 /// Pantalla de métodos de pago
 /// Permite al usuario agregar, editar y eliminar métodos de pago
 class PaymentMethodsScreen extends StatefulWidget {
-  const PaymentMethodsScreen({super.key});
+  final bool isTab;
+  const PaymentMethodsScreen({super.key, this.isTab = false});
 
   @override
   State<PaymentMethodsScreen> createState() => _PaymentMethodsScreenState();
@@ -13,29 +16,43 @@ class PaymentMethodsScreen extends StatefulWidget {
 class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   final List<Map<String, dynamic>> _paymentMethods = [
     {
-      'id': '1',
-      'type': 'card',
-      'cardType': 'Visa',
-      'lastFourDigits': '4242',
-      'expiryDate': '12/25',
+      'id': 'default_cash',
+      'type': 'cash',
+      'label': 'Efectivo',
       'isDefault': true,
     },
-    {
-      'id': '2',
-      'type': 'card',
-      'cardType': 'Mastercard',
-      'lastFourDigits': '8888',
-      'expiryDate': '08/24',
-      'isDefault': false,
-    },
-    {
-      'id': '3',
-      'type': 'wallet',
-      'walletName': 'PayPal',
-      'email': 'user@example.com',
-      'isDefault': false,
-    },
   ];
+
+  Map<String, dynamic>? _clientStats;
+  bool _isLoadingStats = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadClientStats();
+  }
+
+  Future<void> _loadClientStats() async {
+    setState(() => _isLoadingStats = true);
+    try {
+      final session = await UserService.getSavedSession();
+      final userId = session?['id'];
+      
+      if (userId != null) {
+        final response = await UserService.getClientStats(userId);
+        if (response['success'] == true) {
+          setState(() {
+            _clientStats = response['data'];
+            _isLoadingStats = false;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error loading stats: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingStats = false);
+    }
+  }
 
   void _addPaymentMethod() {
     showModalBottomSheet(
@@ -63,6 +80,17 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   }
 
   void _deletePaymentMethod(String id) {
+    if (id == 'default_cash') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se puede eliminar el método de pago en efectivo'),
+          backgroundColor: Colors.black87,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -113,30 +141,63 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.isTab) {
+      return _buildTabBody();
+    }
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
+        child: _buildTabBody(),
+      ),
+      floatingActionButton: _buildFAB(),
+    );
+  }
+
+  Widget _buildTabBody() {
+    return RefreshIndicator(
+      onRefresh: _loadClientStats,
+      color: const Color(0xFFFFFF00),
+      backgroundColor: const Color(0xFF1A1A1A),
+      child: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _buildHeader(),
-            Expanded(
-              child: _paymentMethods.isEmpty
-                  ? _buildEmptyState()
-                  : _buildPaymentMethodsList(),
+            _buildAnalyticsSection(),
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 30, 20, 10),
+              child: Text(
+                'Métodos guardados',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: -0.5,
+                ),
+              ),
             ),
+            _paymentMethods.isEmpty
+                ? _buildEmptyState()
+                : _buildPaymentMethodsList(),
+            const SizedBox(height: 100),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _addPaymentMethod,
-        backgroundColor: const Color(0xFFFFFF00),
-        icon: const Icon(Icons.add, color: Colors.black),
-        label: const Text(
-          'Agregar método',
-          style: TextStyle(
-            color: Colors.black,
-            fontWeight: FontWeight.bold,
-          ),
+    );
+  }
+
+  FloatingActionButton _buildFAB() {
+    return FloatingActionButton.extended(
+      onPressed: _addPaymentMethod,
+      backgroundColor: const Color(0xFFFFFF00),
+      elevation: 4,
+      icon: const Icon(Icons.add_rounded, color: Colors.black),
+      label: const Text(
+        'Agregar método',
+        style: TextStyle(
+          color: Colors.black,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );
@@ -144,20 +205,31 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, color: Colors.white),
-            onPressed: () => Navigator.pop(context),
-          ),
-          const Expanded(
+          if (!widget.isTab) ...[
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+              ),
+            ),
+            const SizedBox(width: 16),
+          ],
+          Expanded(
             child: Text(
-              'Métodos de pago',
-              style: TextStyle(
+              widget.isTab ? 'Ganancias' : 'Mis Pagos',
+              style: const TextStyle(
                 color: Colors.white,
-                fontSize: 20,
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
+                letterSpacing: -0.5,
               ),
             ),
           ),
@@ -166,11 +238,132 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     );
   }
 
+  Widget _buildAnalyticsSection() {
+    final totalSpent = _clientStats?['total_spent'] ?? 0.0;
+    final totalTrips = _clientStats?['total_trips'] ?? 0;
+    final avgCost = _clientStats?['average_cost'] ?? 0.0;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Resumen de gastos',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Total gastado',
+                  value: '\$${_formatCurrency(totalSpent)}',
+                  icon: Icons.account_balance_wallet_rounded,
+                  color: const Color(0xFFFFFF00),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildStatCard(
+                  title: 'Viajes',
+                  value: totalTrips.toString(),
+                  icon: Icons.local_taxi_rounded,
+                  color: const Color(0xFF00E676),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _buildStatCard(
+            title: 'Promedio por viaje',
+            value: '\$${_formatCurrency(avgCost)}',
+            icon: Icons.trending_up_rounded,
+            color: const Color(0xFF64B5F6),
+            isFullWidth: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard({
+    required String title,
+    required String value,
+    required IconData icon,
+    required Color color,
+    bool isFullWidth = false,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: color.withOpacity(0.2),
+          width: 1.5,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(icon, color: color, size: 24),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatCurrency(dynamic amount) {
+    if (amount == null) return '0';
+    final formatter = NumberFormat.currency(
+      locale: 'es_CO',
+      symbol: '',
+      decimalDigits: 0,
+    );
+    return formatter.format(amount).trim();
+  }
+
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
+          const SizedBox(height: 40),
           Container(
             padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
@@ -178,14 +371,14 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
               shape: BoxShape.circle,
             ),
             child: const Icon(
-              Icons.credit_card_off,
+              Icons.credit_card_off_rounded,
               color: Color(0xFFFFFF00),
               size: 64,
             ),
           ),
           const SizedBox(height: 24),
           const Text(
-            'No hay métodos de pago',
+            'No hay métodos guardados',
             style: TextStyle(
               color: Colors.white,
               fontSize: 20,
@@ -194,7 +387,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           ),
           const SizedBox(height: 12),
           Text(
-            'Agrega un método de pago para continuar',
+            'Agrega un método de pago adicional',
             style: TextStyle(
               color: Colors.white.withOpacity(0.6),
               fontSize: 14,
@@ -207,7 +400,9 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
 
   Widget _buildPaymentMethodsList() {
     return ListView.builder(
-      padding: const EdgeInsets.all(20),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       itemCount: _paymentMethods.length,
       itemBuilder: (context, index) {
         final method = _paymentMethods[index];
@@ -220,15 +415,38 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   }
 
   Widget _buildPaymentMethodCard(Map<String, dynamic> method) {
-    final isCard = method['type'] == 'card';
+    final methodType = method['type'] as String;
     final isDefault = method['isDefault'] as bool;
+    final id = method['id'] as String;
+
+    IconData icon;
+    String title;
+    String subtitle;
+    Color iconColor;
+
+    if (methodType == 'cash') {
+      icon = Icons.payments_rounded;
+      title = 'Efectivo';
+      subtitle = 'Pagar al finalizar el viaje';
+      iconColor = const Color(0xFF81C784);
+    } else if (methodType == 'card') {
+      icon = Icons.credit_card_rounded;
+      title = '${method['cardType']} •••• ${method['lastFourDigits']}';
+      subtitle = 'Vence ${method['expiryDate']}';
+      iconColor = const Color(0xFF64B5F6);
+    } else {
+      icon = Icons.account_balance_wallet_rounded;
+      title = method['walletName'] as String;
+      subtitle = method['email'] as String;
+      iconColor = const Color(0xFFFFB74D);
+    }
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A1A).withOpacity(0.6),
             borderRadius: BorderRadius.circular(20),
@@ -240,21 +458,16 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
             ),
           ),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFFFF00).withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
+                      color: iconColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(14),
                     ),
-                    child: Icon(
-                      isCard ? Icons.credit_card : Icons.account_balance_wallet,
-                      color: const Color(0xFFFFFF00),
-                      size: 24,
-                    ),
+                    child: Icon(icon, color: iconColor, size: 24),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
@@ -262,20 +475,16 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isCard
-                              ? '${method['cardType']} •••• ${method['lastFourDigits']}'
-                              : method['walletName'] as String,
+                          title,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 2),
                         Text(
-                          isCard
-                              ? 'Vence ${method['expiryDate']}'
-                              : method['email'] as String,
+                          subtitle,
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.6),
                             fontSize: 13,
@@ -285,45 +494,34 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                     ),
                   ),
                   if (isDefault)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFFF00),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Text(
-                        'Predeterminado',
-                        style: TextStyle(
-                          color: Colors.black,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
+                    const Icon(Icons.check_circle_rounded, color: Color(0xFFFFFF00), size: 24),
+                ],
+              ),
+              if (!isDefault || methodType != 'cash') ...[
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    if (!isDefault)
+                      Expanded(
+                        child: _buildActionButton(
+                          label: 'Predeterminar',
+                          icon: Icons.check_circle_outline_rounded,
+                          onTap: () => _setDefaultPaymentMethod(id),
                         ),
                       ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  if (!isDefault)
-                    Expanded(
-                      child: _buildActionButton(
-                        label: 'Usar por defecto',
-                        icon: Icons.check_circle_outline,
-                        onTap: () => _setDefaultPaymentMethod(method['id'] as String),
+                    if (!isDefault && id != 'default_cash') const SizedBox(width: 12),
+                    if (id != 'default_cash')
+                      Expanded(
+                        child: _buildActionButton(
+                          label: 'Eliminar',
+                          icon: Icons.delete_outline_rounded,
+                          color: Colors.redAccent,
+                          onTap: () => _deletePaymentMethod(id),
+                        ),
                       ),
-                    ),
-                  if (!isDefault) const SizedBox(width: 12),
-                  Expanded(
-                    child: _buildActionButton(
-                      label: 'Eliminar',
-                      icon: Icons.delete_outline,
-                      color: Colors.red,
-                      onTap: () => _deletePaymentMethod(method['id'] as String),
-                    ),
-                  ),
-                ],
-              ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -339,15 +537,16 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
   }) {
     final buttonColor = color ?? const Color(0xFFFFFF00);
 
-    return GestureDetector(
+    return InkWell(
       onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: buttonColor.withOpacity(0.2),
+          color: buttonColor.withOpacity(0.1),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: buttonColor.withOpacity(0.3),
+            color: buttonColor.withOpacity(0.2),
             width: 1,
           ),
         ),
@@ -375,7 +574,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       height: MediaQuery.of(context).size.height * 0.7,
       decoration: const BoxDecoration(
         color: Color(0xFF1A1A1A),
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
       ),
       child: Column(
         children: [
@@ -395,7 +594,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
               'Agregar método de pago',
               style: TextStyle(
                 color: Colors.white,
-                fontSize: 20,
+                fontSize: 22,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -407,7 +606,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
               child: Column(
                 children: [
                   _buildPaymentOption(
-                    icon: Icons.credit_card,
+                    icon: Icons.credit_card_rounded,
                     title: 'Tarjeta de crédito/débito',
                     subtitle: 'Visa, Mastercard, etc.',
                     onTap: () {
@@ -417,7 +616,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                   ),
                   const SizedBox(height: 12),
                   _buildPaymentOption(
-                    icon: Icons.account_balance_wallet,
+                    icon: Icons.account_balance_wallet_rounded,
                     title: 'Billetera digital',
                     subtitle: 'PayPal, Apple Pay, etc.',
                     onTap: () {
@@ -429,22 +628,6 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                           behavior: SnackBarBehavior.floating,
                         ),
                       );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  _buildPaymentOption(
-                    icon: Icons.money,
-                    title: 'Efectivo',
-                    subtitle: 'Pagar al conductor',
-                    onTap: () {
-                      Navigator.pop(context);
-                      setState(() {
-                        _paymentMethods.add({
-                          'id': DateTime.now().millisecondsSinceEpoch.toString(),
-                          'type': 'cash',
-                          'isDefault': false,
-                        });
-                      });
                     },
                   ),
                 ],
@@ -465,13 +648,13 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white.withOpacity(0.03),
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: Colors.white.withOpacity(0.1),
-            width: 1,
+            color: Colors.white.withOpacity(0.05),
+            width: 1.5,
           ),
         ),
         child: Row(
@@ -479,10 +662,10 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: const Color(0xFFFFFF00).withOpacity(0.2),
-                borderRadius: BorderRadius.circular(12),
+                color: const Color(0xFFFFFF00).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(14),
               ),
-              child: Icon(icon, color: const Color(0xFFFFFF00), size: 24),
+              child: Icon(icon, color: const Color(0xFFFFFF00), size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -494,21 +677,21 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     subtitle,
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.6),
+                      color: Colors.white.withOpacity(0.5),
                       fontSize: 13,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios, color: Colors.white.withOpacity(0.3), size: 18),
+            Icon(Icons.arrow_forward_ios_rounded, color: Colors.white.withOpacity(0.2), size: 16),
           ],
         ),
       ),
@@ -526,11 +709,11 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A1A),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
         ),
         title: const Text(
           'Agregar tarjeta',
-          style: TextStyle(color: Colors.white),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -580,14 +763,10 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(color: Colors.white54),
-            ),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
           ),
           TextButton(
             onPressed: () {
-              // Validar y agregar tarjeta
               if (cardNumberController.text.length >= 15 &&
                   expiryController.text.length == 5 &&
                   cvvController.text.length >= 3 &&
@@ -596,7 +775,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                   _paymentMethods.add({
                     'id': DateTime.now().millisecondsSinceEpoch.toString(),
                     'type': 'card',
-                    'cardType': 'Visa', // Detectar tipo de tarjeta
+                    'cardType': 'Visa',
                     'lastFourDigits': cardNumberController.text.substring(
                       cardNumberController.text.length - 4,
                     ),
@@ -605,20 +784,15 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                   });
                 });
                 Navigator.pop(context);
-                
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Tarjeta agregada exitosamente'),
-                    backgroundColor: Colors.black87,
-                    behavior: SnackBarBehavior.floating,
+                    content: Text('Card added successfully'),
+                    backgroundColor: Color(0xFFFFFF00),
                   ),
                 );
               }
             },
-            child: const Text(
-              'Agregar',
-              style: TextStyle(color: Color(0xFFFFFF00)),
-            ),
+            child: const Text('Agregar', style: TextStyle(color: Color(0xFFFFFF00), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -658,20 +832,31 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
             filled: true,
             fillColor: Colors.white.withOpacity(0.05),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(16),
               borderSide: const BorderSide(color: Color(0xFFFFFF00)),
             ),
           ),
         ),
       ],
+    );
+  }
+
+  void _showComingSoon() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Función en desarrollo'),
+        backgroundColor: const Color(0xFF1A1A1A),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
     );
   }
 }

@@ -161,6 +161,25 @@ class UserService {
     }
   }
 
+  static Future<Map<String, dynamic>> getClientStats(int userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/trips/get_client_stats.php?userId=$userId'),
+        headers: {
+          'Accept': 'application/json',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+    } catch (e) {
+      print('Error en getClientStats: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   static Future<Map<String, dynamic>?> getProfile({int? userId, String? email}) async {
     try {
       final uri = Uri.parse('${AppConfig.authServiceUrl}/profile.php')

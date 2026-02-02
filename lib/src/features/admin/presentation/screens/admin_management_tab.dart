@@ -79,23 +79,6 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
                 },
               ),
               _ManagementItem(
-                title: 'Conductores',
-                subtitle: 'Administrar conductores y sus vehículos',
-                icon: Icons.drive_eta_rounded,
-                accentColor: const Color(0xFF11998e),
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    RouteNames.adminUsers,
-                    arguments: {
-                      'admin_id': adminId,
-                      'admin_user': widget.adminUser,
-                      'filter': 'conductores',
-                    },
-                  );
-                },
-              ),
-              _ManagementItem(
                 title: 'Cobro de Comisiones',
                 subtitle: 'Gestionar deudas y pagos de conductores',
                 icon: Icons.payments_rounded,
@@ -104,75 +87,12 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
                   Navigator.pushNamed(context, RouteNames.adminCommissions);
                 },
               ),
-              _ManagementItem(
-                title: 'Clientes',
-                subtitle: 'Ver y gestionar clientes registrados',
-                icon: Icons.person_outline_rounded,
-                accentColor: const Color(0xFF667eea),
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    RouteNames.adminUsers,
-                    arguments: {
-                      'admin_id': adminId,
-                      'admin_user': widget.adminUser,
-                      'filter': 'clientes',
-                    },
-                  );
-                },
-              ),
             ],
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 30),
           _buildSection(
-            title: 'Reportes y Auditoría',
+            title: 'Configuración y Tarifas',
             items: [
-              _ManagementItem(
-                title: 'Logs de Auditoría',
-                subtitle: 'Historial completo de acciones del sistema',
-                icon: Icons.history_rounded,
-                accentColor: const Color(0xFFf093fb),
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    RouteNames.adminAuditLogs,
-                    arguments: {'admin_id': adminId},
-                  );
-                },
-              ),
-              _ManagementItem(
-                title: 'Reportes de Problemas',
-                subtitle: 'Reportes y quejas de usuarios',
-                icon: Icons.report_problem_rounded,
-                accentColor: const Color(0xFFf5576c),
-                onTap: () {
-                  _showComingSoon();
-                },
-              ),
-              _ManagementItem(
-                title: 'Actividad del Sistema',
-                subtitle: 'Monitoreo en tiempo real de la actividad',
-                icon: Icons.monitor_heart_rounded,
-                accentColor: const Color(0xFFffa726),
-                onTap: () {
-                  _showComingSoon();
-                },
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          _buildSection(
-            title: 'Configuración',
-            items: [
-              _ManagementItem(
-                title: 'Ajustes Generales',
-                subtitle: 'Configuración de la aplicación',
-                icon: Icons.settings_rounded,
-                accentColor: const Color(0xFF667eea),
-                onTap: () {
-                  _showComingSoon();
-                },
-              ),
               _ManagementItem(
                 title: 'Tarifas y Comisiones',
                 subtitle: 'Gestionar precios y comisiones en COP',
@@ -180,15 +100,6 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
                 accentColor: const Color(0xFFFFFF00),
                 onTap: () {
                   Navigator.pushNamed(context, RouteNames.adminRates);
-                },
-              ),
-              _ManagementItem(
-                title: 'Notificaciones Push',
-                subtitle: 'Enviar notificaciones a usuarios',
-                icon: Icons.notifications_active_rounded,
-                accentColor: const Color(0xFF11998e),
-                onTap: () {
-                  _showComingSoon();
                 },
               ),
             ],
