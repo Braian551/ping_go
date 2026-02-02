@@ -56,30 +56,56 @@ class _ConductorMapViewState extends State<ConductorMapView> {
       _startLocationStream();
       _startCompassStream();
 
-      // 3. Obtener ubicación inicial para centrar el mapa
-      final position = await Geolocator.getCurrentPosition();
+      // 3. Obtener ubicación inicial (optimizada)
+      // Primero intentamos getLastKnownPosition para respuesta inmediata
+      final lastKnown = await Geolocator.getLastKnownPosition();
+      
+      if (mounted && lastKnown != null) {
+        setState(() {
+          _currentPosition = LatLng(lastKnown.latitude, lastKnown.longitude);
+          _isLoading = false;
+        });
+        _safeMoveMap(_currentPosition!);
+      }
+
+      // Luego intentamos getCurrentPosition para mayor precisión
+      final position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+        timeLimit: const Duration(seconds: 10), // Increased timeout
+      );
+      
       if (mounted) {
         setState(() {
           _currentPosition = LatLng(position.latitude, position.longitude);
           _isLoading = false;
         });
         
-        // Esperar a que el mapa se renderice para moverlo
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _mapController.move(_currentPosition!, 15);
-            _isMapReady = true;
-          }
-        });
+        // Solo mover si es la primera vez o si nos movimos significativamente
+        if (_currentPosition!.latitude != 0 && _currentPosition!.longitude != 0) {
+             _safeMoveMap(_currentPosition!);
+        }
       }
     } catch (e) {
       print('Error inicializando mapa: $e');
       if (mounted) {
         setState(() => _isLoading = false);
-        // Fallback: intentar geolocator simple si falla algo
-        _getCurrentLocation(); 
       }
     }
+  }
+  
+  void _safeMoveMap(LatLng pos) {
+      if (pos.latitude == 0 && pos.longitude == 0) return;
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          try {
+             _mapController.move(pos, 16.0);
+             _isMapReady = true;
+          } catch (e) {
+             print('Error moving map: $e');
+          }
+        }
+      });
   }
 
   Future<void> _loadVehicleInfo() async {
@@ -89,6 +115,7 @@ class _ConductorMapViewState extends State<ConductorMapView> {
         final conductorId = int.tryParse(session['id'].toString());
         if (conductorId != null) {
           final profile = await ConductorProfileService.getProfile(conductorId);
+          print('DEBUG: Conductor Profile Vehicle Type: ${profile?.vehiculo?.tipo}');
           if (profile?.vehiculo?.tipo != null) {
             if (mounted) {
               setState(() {
@@ -100,7 +127,6 @@ class _ConductorMapViewState extends State<ConductorMapView> {
       }
     } catch (e) {
       print('Error cargando información del vehículo: $e');
-      // Mantener valor por defecto (carro)
     }
   }
 
@@ -116,7 +142,7 @@ class _ConductorMapViewState extends State<ConductorMapView> {
         setState(() {
           _currentPosition = LatLng(position.latitude, position.longitude);
         });
-        // Opcional: Centrar mapa si el usuario quiere seguimiento automático (podría agregarse un botón de toggle)
+        // Opcional: Centrar mapa si el usuario quiere seguimiento automático
       }
     });
   }
@@ -129,24 +155,6 @@ class _ConductorMapViewState extends State<ConductorMapView> {
         });
       }
     });
-  }
-
-  Future<void> _getCurrentLocation() async {
-    try {
-      final position = await Geolocator.getCurrentPosition();
-      if (mounted) {
-        setState(() {
-          _currentPosition = LatLng(position.latitude, position.longitude);
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error obteniendo ubicación: $e')),
-        );
-      }
-    }
   }
 
   @override
@@ -186,35 +194,17 @@ class _ConductorMapViewState extends State<ConductorMapView> {
           mapController: _mapController,
           options: MapOptions(
             initialCenter: _currentPosition!,
-            initialZoom: 16.0, // Zoom un poco más cercano para ver detalles
+            initialZoom: 16.0, 
             interactionOptions: const InteractionOptions(
               flags: InteractiveFlag.all,
             ),
+            backgroundColor: const Color(0xFF1A1A1A), // Fondo oscuro para evitar flash blanco
           ),
           children: [
             TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              urlTemplate: 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
               userAgentPackageName: 'com.example.ping_go',
-              // Filtro modo oscuro
-              tileBuilder: (context, widget, tile) {
-                return ColorFiltered(
-                  colorFilter: const ColorFilter.mode(
-                    Colors.grey, 
-                    BlendMode.saturation,
-                  ), 
-                  child: ColorFiltered(
-                    colorFilter: const ColorFilter.matrix(
-                      [
-                        -1,  0,  0, 0, 255,
-                         0, -1,  0, 0, 255,
-                         0,  0, -1, 0, 255,
-                         0,  0,  0, 1,   0,
-                      ], 
-                    ),
-                    child: widget,
-                  ),
-                );
-              },
+              // Carto dark tiles ya tienen tema oscuro nativo
             ),
             MarkerLayer(
               markers: [
@@ -224,15 +214,17 @@ class _ConductorMapViewState extends State<ConductorMapView> {
                   height: 60,
                   child: Transform.rotate(
                     // Rotar según la brújula
-                    // FontAwesome carSide/motorcycle apuntan a la derecha. 
-                    // Restamos 90 grados (pi/2) para que apunten hacia arriba (Norte) cuando el heading es 0.
-                    angle: ((_heading ?? 0) * (math.pi / 180)) - (math.pi / 2), 
-                    child: Icon(
-                      _vehicleType == VehicleType.carro 
-                          ? FontAwesomeIcons.carSide 
-                          : FontAwesomeIcons.motorcycle, 
-                      color: const Color(0xFFFFD700),
-                      size: 35,
+                     angle: ((_heading ?? 0) * (math.pi / 180)), 
+                    child: Image.asset(
+                      _getVehicleAsset(),
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) {
+                        return const Icon(
+                            Icons.navigation, 
+                            color: Color(0xFFFFD700),
+                            size: 40,
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -260,5 +252,14 @@ class _ConductorMapViewState extends State<ConductorMapView> {
         ),
       ],
     );
+  }
+  
+  String _getVehicleAsset() {
+    // Si es moto
+    if (_vehicleType == VehicleType.motocicleta) {
+      return 'assets/images/moto_top_view.png';
+    }
+    // Por defecto carro
+    return 'assets/images/car_top_view.png';
   }
 }

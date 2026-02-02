@@ -189,9 +189,13 @@ enum VehicleType {
   const VehicleType(this.value, this.label, this.icon);
 
   static VehicleType fromString(String value) {
+    final normalized = value.toLowerCase().trim();
+    if (normalized == 'moto' || normalized == 'motocicleta') {
+      return VehicleType.motocicleta;
+    }
     return VehicleType.values.firstWhere(
-      (type) => type.value == value,
-      orElse: () => VehicleType.motocicleta,
+      (type) => type.value == normalized,
+      orElse: () => VehicleType.carro, // Default to car if unknown, but better to check
     );
   }
 }

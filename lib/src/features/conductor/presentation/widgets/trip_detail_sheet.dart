@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import '../../../../core/config/app_config.dart';
 
 class TripDetailSheet extends StatelessWidget {
   final Map<String, dynamic> trip;
@@ -78,7 +79,7 @@ class TripDetailSheet extends StatelessWidget {
                   radius: 25,
                   backgroundColor: Colors.grey[800],
                   backgroundImage: (trip['cliente_foto'] != null && trip['cliente_foto'].toString().isNotEmpty)
-                      ? NetworkImage(trip['cliente_foto'])
+                      ? NetworkImage(AppConfig.resolveImageUrl(trip['cliente_foto']))
                       : null,
                   child: (trip['cliente_foto'] == null || trip['cliente_foto'].toString().isEmpty)
                       ? const Icon(Icons.person, size: 30, color: Colors.white54)

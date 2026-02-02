@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../services/conductor_service.dart';
 import '../screens/driver_trip_screen.dart';
+import '../../../../core/config/app_config.dart';
 
 class ConductorDashboardView extends StatefulWidget {
   final Map<String, dynamic> conductorUser;
@@ -195,7 +196,7 @@ class _ConductorDashboardViewState extends State<ConductorDashboardView> {
                     CircleAvatar(
                       radius: 30,
                       backgroundImage: (assignment['cliente_foto'] != null)
-                          ? NetworkImage(assignment['cliente_foto'])
+                          ? NetworkImage(AppConfig.resolveImageUrl(assignment['cliente_foto']))
                           : null,
                       backgroundColor: Colors.grey[800],
                       child: (assignment['cliente_foto'] == null)
@@ -477,7 +478,7 @@ class _ConductorDashboardViewState extends State<ConductorDashboardView> {
                                   radius: 20,
                                   backgroundColor: Colors.grey[800],
                                   backgroundImage: (req['cliente_foto'] != null)
-                                      ? NetworkImage(req['cliente_foto'])
+                                      ? NetworkImage(AppConfig.resolveImageUrl(req['cliente_foto']))
                                       : null,
                                   child: (req['cliente_foto'] == null)
                                       ? const Icon(Icons.person, size: 20, color: Colors.white54)
@@ -741,5 +742,11 @@ class _ConductorDashboardViewState extends State<ConductorDashboardView> {
         ),
       ),
     );
+  }
+
+  String _resolveUrl(String path) {
+    if (path.startsWith('http')) return path;
+    final cleanPath = path.startsWith('/') ? path.substring(1) : path;
+    return '${AppConfig.baseUrl}/$cleanPath'.replaceAll('//ping_go', '/ping_go');
   }
 }

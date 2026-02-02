@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:intl/intl.dart';
 import 'package:ping_go/src/core/config/app_config.dart';
+import '../../services/conductor_service.dart';
 
 class ConductorEarningsScreen extends StatefulWidget {
   final Map<String, dynamic> conductorUser;
@@ -19,6 +21,7 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
   double _totalEarnings = 0.0;
   double _currentDebt = 0.0;
   String _currency = 'COP';
+  List<dynamic> _history = [];
 
   @override
   void initState() {
@@ -37,11 +40,18 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
         final data = json.decode(response.body);
         if (data['success'] == true) {
           final balance = data['balance'];
+          
+          // Fetch history as well
+          final historyData = await ConductorService.getCommissionHistory(conductorId);
+
           if (mounted) {
             setState(() {
               _totalEarnings = double.parse(balance['ganancia_total'].toString());
               _currentDebt = double.parse(balance['deuda_actual'].toString());
               _currency = balance['moneda'] ?? 'COP';
+              if (historyData['success'] == true) {
+                _history = historyData['data'];
+              }
               _isLoading = false;
             });
           }
@@ -74,51 +84,72 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFFF00)))
           : _error.isNotEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.error_outline, color: Colors.red, size: 48),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error: $_error',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      const SizedBox(height: 16),
-                      ElevatedButton(
-                        onPressed: () {
-                          setState(() {
-                            _isLoading = true;
-                            _error = '';
-                          });
-                          _fetchEarnings();
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFFFF00),
-                          foregroundColor: Colors.black,
+              ? _buildErrorView()
+              : RefreshIndicator(
+                  color: const Color(0xFFFFFF00),
+                  onRefresh: _fetchEarnings,
+                  child: SingleChildScrollView(
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildSummaryCard(),
+                        const SizedBox(height: 24),
+                        _buildDebtStatus(),
+                        const SizedBox(height: 24),
+                        const Text(
+                          'Nota: La deuda actual corresponde a las comisiones de los viajes pagados en efectivo que aún no has abonado a la plataforma.',
+                          style: TextStyle(color: Colors.white54, fontSize: 13, fontStyle: FontStyle.italic),
                         ),
-                        child: const Text('Reintentar'),
-                      ),
-                    ],
-                  ),
-                )
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildSummaryCard(),
-                      const SizedBox(height: 24),
-                      _buildDebtStatus(),
-                      const SizedBox(height: 24),
-                      const Text(
-                        'Nota: La deuda actual corresponde a las comisiones de los viajes pagados en efectivo que aún no has abonado a la plataforma.',
-                        style: TextStyle(color: Colors.white54, fontSize: 13, fontStyle: FontStyle.italic),
-                      ),
-                    ],
+                        const SizedBox(height: 32),
+                        const Text(
+                          'Historial de Pagos',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        _buildHistoryList(),
+                        const SizedBox(height: 40),
+                      ],
+                    ),
                   ),
                 ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 48),
+          const SizedBox(height: 16),
+          Text(
+            'Error: $_error',
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: () {
+              setState(() {
+                _isLoading = true;
+                _error = '';
+              });
+              _fetchEarnings();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFFFFF00),
+              foregroundColor: Colors.black,
+            ),
+            child: const Text('Reintentar'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -165,10 +196,10 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '\$$_totalEarnings $_currency',
+                   NumberFormat.currency(locale: 'es_CO', symbol: '\$').format(_totalEarnings),
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 36,
+                    fontSize: 34,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -238,7 +269,7 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
           ),
           const SizedBox(height: 24),
           Text(
-             '\$$_currentDebt $_currency',
+             NumberFormat.currency(locale: 'es_CO', symbol: '\$').format(_currentDebt),
             style: TextStyle(
               color: hasDebt ? Colors.redAccent : Colors.greenAccent,
               fontSize: 32,
@@ -280,6 +311,93 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
               ),
         ],
       ),
+    );
+  }
+
+  Widget _buildHistoryList() {
+    if (_history.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: BoxDecoration(
+          color: const Color(0xFF121212),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white10),
+        ),
+        child: const Center(
+          child: Column(
+            children: [
+              Icon(Icons.history_rounded, color: Colors.white24, size: 48),
+              SizedBox(height: 12),
+              Text(
+                'No hay pagos registrados aún',
+                style: TextStyle(color: Colors.white38),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _history.length,
+      itemBuilder: (context, index) {
+        final item = _history[index];
+        final amount = double.tryParse(item['monto_pagado'].toString()) ?? 0.0;
+        final date = DateTime.parse(item['fecha_pago']);
+
+        return Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.05)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Pago Registrado',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      DateFormat('dd MMM yyyy • HH:mm').format(date),
+                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    NumberFormat.currency(locale: 'es_CO', symbol: '\$').format(amount),
+                    style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  Text(
+                    '${item['num_transacciones']} viajes',
+                    style: const TextStyle(color: Colors.white30, fontSize: 11),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/conductor_service.dart';
 import 'package:intl/intl.dart';
 import '../widgets/trip_detail_sheet.dart';
+import '../../../../core/config/app_config.dart';
 
 class ConductorHistoryView extends StatefulWidget {
   final Map<String, dynamic> conductorUser;
@@ -164,7 +165,7 @@ class _ConductorHistoryViewState extends State<ConductorHistoryView> {
                         radius: 20,
                         backgroundColor: Colors.grey[800],
                         backgroundImage: (viaje['cliente_foto'] != null && viaje['cliente_foto'].toString().isNotEmpty)
-                            ? NetworkImage(viaje['cliente_foto'])
+                            ? NetworkImage(AppConfig.resolveImageUrl(viaje['cliente_foto']))
                             : null,
                         child: (viaje['cliente_foto'] == null || viaje['cliente_foto'].toString().isEmpty)
                             ? const Icon(Icons.person, color: Colors.white54)

@@ -92,7 +92,8 @@ class OsmService {
 
   /// Obtener URL de tile para OpenStreetMap
   static String getTileUrl() {
-    return AppConstants.osmTileUrl;
+    // Using CartoDB Dark Matter theme (free, no auth required)
+    return 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
   }
 
   /// Calcular ruta usando OSRM (Open Source Routing Machine)

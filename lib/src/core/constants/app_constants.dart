@@ -3,25 +3,33 @@ import 'package:ping_go/src/core/config/app_config.dart';
 
 class AppConstants {
   // ============================================
-  // CONFIGURACIÓN DE MAPAS (OPENSTREETMAP)
+  // CONFIGURACIÓN DE MAPAS (CARTO + OSM)
   // ============================================
-  // La configuración de mapas ahora usa OpenStreetMap gratuito
+  // La configuración de mapas usa Carto (gratuito y confiable)
+  // Alternativas: CartoDB, Stadia Maps, MapTiler (con API key)
   
   // Ubicación por defecto (Bogotá, Colombia)
   static const double defaultLatitude = 4.6097;
   static const double defaultLongitude = -74.0817;
   static const double defaultZoom = 15.0;
   
-  // URL template para OpenStreetMap tiles
-  static const String osmTileUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  // URL template para tiles - Usando Carto basemaps (gratuito)
+  // Carto Dark Matter: Tema oscuro perfecto para apps dark mode
+  static const String osmTileUrl = 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  
+  // Opciones de tiles alternativos (todos gratuitos)
+  static const String cartoLightUrl = 'https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+  static const String cartoDarkUrl = 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  static const String cartoVoyagerUrl = 'https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+  static const String osmStandardUrl = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   
   // Nominatim API para geocoding
   static const String nominatimUrl = 'https://nominatim.openstreetmap.org';
   
-  // Estilos de mapa disponibles (simulados con OSM)
-  static const String mapStyleStreets = 'osm-streets';
-  static const String mapStyleDark = 'osm-dark';
-  static const String mapStyleLight = 'osm-light';
+  // Estilos de mapa disponibles
+  static const String mapStyleStreets = 'carto-voyager';
+  static const String mapStyleDark = 'carto-dark';
+  static const String mapStyleLight = 'carto-light';
   static const String mapStyleOutdoors = 'osm-outdoors';
   static const String mapStyleSatellite = 'osm-satellite';
   

@@ -16,13 +16,13 @@ class MapService {
     return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
   }
 
-  /// Obtener URL de tile para OpenStreetMap
+  /// Obtener URL de tile (Carto dark - tema oscuro)
   static String getTileUrl(int x, int y, int zoom) {
-    return 'https://tile.openstreetmap.org/$zoom/$x/$y.png';
+    return 'https://basemaps.cartocdn.com/dark_all/$zoom/$x/$y.png';
   }
 
-  /// Obtener URL de tile alternativo (CartoDB)
-  static String getCartoDBTileUrl(int x, int y, int zoom) {
-    return 'https://cartodb-basemaps-a.global.ssl.fastly.net/light_all/$zoom/$x/$y.png';
+  /// Obtener URL de tile claro (CartoDB Voyager)
+  static String getCartoLightTileUrl(int x, int y, int zoom) {
+    return 'https://basemaps.cartocdn.com/rastertiles/voyager/$zoom/$x/$y.png';
   }
 }

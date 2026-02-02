@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:ping_go/src/global/services/admin/admin_service.dart';
 import 'package:ping_go/src/global/config/api_config.dart';
+import 'package:ping_go/src/core/config/app_config.dart';
 import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -418,7 +419,7 @@ class _PendingDriversScreenState extends State<PendingDriversScreen> {
                           radius: 30,
                           backgroundColor: const Color(0xFFFFFF00),
                           backgroundImage: driver['url_imagen_perfil'] != null
-                              ? NetworkImage(driver['url_imagen_perfil'])
+                              ? NetworkImage(AppConfig.resolveImageUrl(driver['url_imagen_perfil']))
                               : null,
                           child: driver['url_imagen_perfil'] == null
                               ? Text(
@@ -692,21 +693,6 @@ class _PendingDriversScreenState extends State<PendingDriversScreen> {
   }
 
   String _buildImageUrl(String relativePath) {
-    // ApiConfig.baseUrl example: http://10.0.2.2/ping_go/backend-deploy
-    // We want: http://10.0.2.2/ping_go/{relativePath}
-    String baseUrl = ApiConfig.baseUrl;
-    if (baseUrl.endsWith('/backend-deploy')) {
-      baseUrl = baseUrl.replaceAll('/backend-deploy', '');
-    }
-    // Remove trailing slash if exists to avoid double slash
-    if (baseUrl.endsWith('/')) {
-      baseUrl = baseUrl.substring(0, baseUrl.length - 1);
-    }
-    // Correct relative path if it starts with slash (though typically it doesn't from DB)
-    if (relativePath.startsWith('/')) {
-      relativePath = relativePath.substring(1);
-    }
-    
-    return '$baseUrl/$relativePath';
+    return AppConfig.resolveImageUrl(relativePath);
   }
 }

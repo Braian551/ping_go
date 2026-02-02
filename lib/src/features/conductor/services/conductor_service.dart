@@ -438,6 +438,8 @@ class ConductorService {
     required int solicitudId,
     required String estado, // 'en_sitio', 'en_progreso', 'completada'
     int? conductorId,
+    double? distanciaKm,
+    int? duracionSegundos,
   }) async {
     try {
       final response = await http.post(
@@ -447,6 +449,8 @@ class ConductorService {
           'solicitud_id': solicitudId,
           'estado': estado,
           if (conductorId != null) 'conductor_id': conductorId,
+          if (distanciaKm != null) 'distancia_real': distanciaKm,
+          if (duracionSegundos != null) 'duracion_real': duracionSegundos,
         }),
       );
 
@@ -495,6 +499,24 @@ class ConductorService {
     } catch (e) {
       print('Error obteniendo resumen de viaje: $e');
       return null;
+    }
+  }
+
+  /// Obtener historial de pagos de comisiones del conductor
+  static Future<Map<String, dynamic>> getCommissionHistory(int conductorId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/get_driver_commission_history.php?conductor_id=$conductorId'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+    } catch (e) {
+      print('Error obteniendo historial de comisiones: $e');
+      return {'success': false, 'message': e.toString()};
     }
   }
 }

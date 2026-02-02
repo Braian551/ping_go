@@ -484,4 +484,71 @@ class AdminService {
       return {'success': false, 'message': e.toString()};
     }
   }
+  /// Obtener conductores con deuda
+  static Future<Map<String, dynamic>> getDriversWithDebt() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/get_drivers_with_debt.php'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error en getDriversWithDebt: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Cobrar comisión
+  static Future<Map<String, dynamic>> collectCommission({
+    required int conductorId,
+    double? amount,
+  }) async {
+    try {
+      final Map<String, dynamic> body = {
+        'conductor_id': conductorId,
+      };
+      
+      if (amount != null) {
+        body['monto'] = amount;
+      }
+
+      final response = await http.post(
+        Uri.parse('$_baseUrl/collect_commission.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error en collectCommission: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getCommissionHistory() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$_baseUrl/get_commission_history.php'),
+        headers: {'Content-Type': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return json.decode(response.body);
+      } else {
+        return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Error de conexión: $e'};
+    }
+  }
 }

@@ -291,4 +291,82 @@ class TripRequestService {
       return [];
     }
   }
+  static Future<Map<String, dynamic>> getTripSummary(int solicitudId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/get_trip_summary.php?solicitud_id=$solicitudId'),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {};
+    } catch (e) {
+      print('Error getting summary: $e');
+      return {};
+    }
+  }
+
+  /// Calificar un viaje completado
+  static Future<Map<String, dynamic>> rateTrip({
+    required int solicitudId,
+    required int usuarioId,
+    required int calificacion,
+    String comentario = '',
+  }) async {
+    try {
+      print('⭐ Enviando calificación: $calificacion para solicitud $solicitudId');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/user/rate_trip.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'solicitud_id': solicitudId,
+          'usuario_id': usuarioId,
+          'calificacion': calificacion,
+          'comentario': comentario,
+        }),
+      ).timeout(const Duration(seconds: 10), onTimeout: () {
+        throw Exception('Tiempo de espera agotado');
+      });
+
+      print('📥 Respuesta rating - Status: ${response.statusCode}');
+      print('📄 Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data;
+      } else {
+        return {
+          'success': false,
+          'message': 'Error del servidor: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error enviando calificación: $e');
+      return {
+        'success': false,
+        'message': 'Error de conexión: $e',
+      };
+    }
+  }
+  /// Obtener historial de viajes del usuario
+  static Future<List<Map<String, dynamic>>> getUserHistory(int userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/user/get_user_history.php?usuario_id=$userId'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          return List<Map<String, dynamic>>.from(data['historial'] ?? []);
+        }
+      }
+      return [];
+    } catch (e) {
+      print('Error getting history: $e');
+      return [];
+    }
+  }
 }

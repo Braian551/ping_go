@@ -40,6 +40,38 @@ class AppConfig {
 
   static const String appVersion = '1.0.0';
   static const String apiVersion = 'v1';
+
+  /// Helper para resolver URLs de imágenes
+  /// Maneja la lógica de eliminar 'backend-deploy' si es necesario y añade cache busting
+  static String resolveImageUrl(String? path) {
+    if (path == null || path.isEmpty) return '';
+    
+    // Si ya es una URL completa, devolverla tal cual (o añadir cache busting si se desea)
+    if (path.startsWith('http')) return path;
+
+    // Limpiar path
+    var cleanPath = path;
+    if (cleanPath.startsWith('/')) cleanPath = cleanPath.substring(1);
+    
+    // Construir URL base correcta para imágenes
+    // Asumimos que baseUrl apunta a .../backend-deploy y uploads está dentro
+    String imageBaseUrl = baseUrl;
+    
+    // Asegurar que no termine en slash
+    if (imageBaseUrl.endsWith('/')) {
+      imageBaseUrl = imageBaseUrl.substring(0, imageBaseUrl.length - 1);
+    }
+    
+    // Si la base URL incluye 'backend-deploy' pero la imagen está en 'uploads' (al nivel de raíz de proyecto)
+    // debemos subir un nivel. Esto pasa en la configuración local de Laragon del usuario.
+    // baseUrl: http://10.0.2.2/ping_go/backend-deploy
+    // desired: http://10.0.2.2/ping_go/uploads/...
+    if (imageBaseUrl.endsWith('backend-deploy')) {
+      imageBaseUrl = imageBaseUrl.replaceAll('/backend-deploy', '');
+    }
+
+    return '$imageBaseUrl/$cleanPath';
+  }
 }
 
 enum Environment {

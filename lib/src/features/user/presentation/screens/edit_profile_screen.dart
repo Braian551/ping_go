@@ -182,39 +182,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Widget _buildProfileImage() {
     final String? currentUrl = widget.user['url_imagen_perfil'];
-    // Construct full URL if it's a relative path and not starting with http
+    // Construct full URL using AppConfig helper
     String? fullUrl;
     if (currentUrl != null && currentUrl.isNotEmpty) {
-      if (currentUrl.startsWith('http')) {
-        fullUrl = currentUrl;
-      } else {
-        // Remove duplicate slashes if any
-        final cleanPath = currentUrl.startsWith('uploads/') ? currentUrl : 'uploads/$currentUrl';
-        // Assuming AppConfig.apiBaseUrl points to backend-deploy/ .. we need root
-        // If apiBaseUrl is http://.../backend-deploy, and images are in http://.../uploads
-        // We might need to adjust based on how AppConfig is set.
-        // Assuming standard structure:
-        // backend: domain.com/backend-deploy/
-        // images: domain.com/uploads/
-        // We'll use a pragmatic approach or assume check logic.
-        // For now, let's try to construct it from base domain if possible, or relative to backend.
-        
-        // Quick fix: assume backend url is like .../backend-deploy
-        // We need to go up one level.
-        final baseUrl = AppConfig.baseUrl; // http://10.0.2.2/ping_go/backend-deploy
-        
-        // If baseUrl ends with 'backend-deploy', we remove it to get the project root
-        // uploads is sibling to backend-deploy
-        String rootUrl = baseUrl;
-        if (baseUrl.endsWith('/backend-deploy')) {
-          rootUrl = baseUrl.substring(0, baseUrl.length - '/backend-deploy'.length);
-        } else if (baseUrl.endsWith('backend-deploy/')) {
-           rootUrl = baseUrl.substring(0, baseUrl.length - 'backend-deploy/'.length); 
-        }
-
-        // Now rootUrl should be http://10.0.2.2/ping_go
-        fullUrl = '$rootUrl/$cleanPath';
-      }
+      fullUrl = AppConfig.resolveImageUrl(currentUrl);
     }
 
     ImageProvider? imageProvider;

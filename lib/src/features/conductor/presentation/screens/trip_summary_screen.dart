@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/conductor_service.dart';
+import '../../../../core/config/app_config.dart';
+import '../../../../widgets/avatars/custom_user_avatar.dart';
 
 class TripSummaryScreen extends StatefulWidget {
   final Map<String, dynamic> tripData;
@@ -175,14 +177,11 @@ class _TripSummaryScreenState extends State<TripSummaryScreen> {
           _buildSectionTitle('Pasajero'),
           ListTile(
             contentPadding: EdgeInsets.zero,
-            leading: CircleAvatar(
+            leading: CustomUserAvatar(
+              imageUrl: viaje['cliente_foto'],
+              radius: 24,
               backgroundColor: Colors.grey[800],
-              backgroundImage: (viaje['cliente_foto'] != null)
-                ? NetworkImage(viaje['cliente_foto'])
-                : null,
-              child: (viaje['cliente_foto'] == null)
-                ? const Icon(Icons.person, color: Colors.white)
-                : null,
+              fallbackColor: Colors.white,
             ),
             title: Text(
               viaje['cliente'] ?? 'Cliente',

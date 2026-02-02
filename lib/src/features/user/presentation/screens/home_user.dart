@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:ping_go/src/core/config/app_config.dart';
 import '../../../../routes/route_names.dart';
 import 'package:flutter/material.dart';
+import '../widgets/trip_detail_sheet.dart';
 import 'package:ping_go/src/widgets/auth_wrapper.dart';
 import 'package:ping_go/src/global/services/auth/user_service.dart';
 import 'package:ping_go/src/features/conductor/services/conductor_service.dart';
@@ -9,6 +10,7 @@ import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../services/trip_request_service.dart';
 
 import 'edit_profile_screen.dart';
 
@@ -397,77 +399,218 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
 
   Widget _buildTripHistoryTab() {
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 20),
-            const Text(
-              'Historial de viajes',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -0.5,
-              ),
-            ),
-            const SizedBox(height: 24),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                child: Container(
-                  padding: const EdgeInsets.all(32),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1A1A1A).withOpacity(0.6),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                      color: Colors.white.withOpacity(0.1),
-                      width: 1.5,
-                    ),
+      child: FutureBuilder<List<Map<String, dynamic>>>(
+        future: _currentUser != null && _currentUser!['id'] != null
+            ? TripRequestService.getUserHistory(int.tryParse(_currentUser!['id'].toString()) ?? 0)
+            : Future.value([]),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)));
+          }
+
+          if (snapshot.hasError) {
+             return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.white)));
+          }
+
+          final history = snapshot.data ?? [];
+
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 20),
+                const Text(
+                  'Historial de viajes',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
                   ),
-                  child: Column(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(20),
+                ),
+                const SizedBox(height: 24),
+                if (history.isEmpty)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                      child: Container(
+                        padding: const EdgeInsets.all(32),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.05),
-                          shape: BoxShape.circle,
+                          color: const Color(0xFF1A1A1A).withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.1),
+                            width: 1.5,
+                          ),
                         ),
-                        child: Icon(
-                          Icons.receipt_long,
-                          color: Colors.white.withOpacity(0.3),
-                          size: 48,
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.05),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.receipt_long,
+                                color: Colors.white.withOpacity(0.3),
+                                size: 48,
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              'Sin viajes registrados',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.7),
+                                fontSize: 18,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Tus viajes aparecerán aquí',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.4),
+                                fontSize: 14,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Sin viajes registrados',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.7),
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                        ),
+                    ),
+                  )
+                else
+                  ...history.map((trip) => _buildHistoryItem(trip)),
+                  const SizedBox(height: 80), // Padding inferrior para navbar
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHistoryItem(Map<String, dynamic> trip) {
+    final estado = trip['estado'] ?? 'desconocido';
+    final fecha = trip['fecha'] ?? '';
+    final origen = trip['origen'] ?? 'Origen desconocido';
+    final destino = trip['destino'] ?? 'Destino desconocido';
+    final costo = double.tryParse(trip['costo']?.toString() ?? '0') ?? 0.0;
+    final conductor = trip['conductor'];
+
+    Color statusColor = Colors.grey;
+    if (estado == 'completada' || estado == 'finalizado') statusColor = Colors.green;
+    else if (estado == 'cancelada') statusColor = Colors.red;
+    else if (estado == 'pendiente') statusColor = Colors.orange;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E1E1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            showModalBottomSheet(
+              context: context,
+              isScrollControlled: true,
+              backgroundColor: Colors.transparent,
+              builder: (context) => TripDetailSheet(trip: trip),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: statusColor.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(height: 8),
+                      child: Text(
+                        estado.toUpperCase(),
+                        style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    Text(
+                      '\$${costo.toStringAsFixed(0)}',
+                      style: const TextStyle(color: Color(0xFFFFD700), fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Column(
+                      children: [
+                        const Icon(Icons.circle, color: Color(0xFFFFD700), size: 12),
+                        Container(width: 2, height: 24, color: Colors.grey.withOpacity(0.3)),
+                        const Icon(Icons.location_on, color: Colors.redAccent, size: 12),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(origen, style: const TextStyle(color: Colors.white, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 16),
+                          Text(destino, style: const TextStyle(color: Colors.white, fontSize: 14), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                if (conductor != null) ...[
+                  const Divider(color: Colors.grey),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 12,
+                        backgroundColor: Colors.grey[800],
+                        backgroundImage: conductor['foto'] != null 
+                          ? NetworkImage(_resolveUrl(conductor['foto']))
+                          : null,
+                        child: conductor['foto'] == null 
+                          ? const Icon(Icons.person, size: 14, color: Colors.white)
+                          : null,
+                      ),
+                      const SizedBox(width: 8),
                       Text(
-                        'Tus viajes aparecerán aquí',
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.4),
-                          fontSize: 14,
-                        ),
-                        textAlign: TextAlign.center,
+                        conductor['nombre'] ?? 'Conductor',
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      ),
+                      const Spacer(),
+                      Text(
+                        fecha,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 10),
                       ),
                     ],
                   ),
-                ),
-              ),
+                ],
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
+  }
+
+  String _resolveUrl(String path) {
+    return AppConfig.resolveImageUrl(path);
   }
 
   Widget _buildPaymentsTab() {
@@ -621,10 +764,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                               _currentUser!['url_imagen_perfil'] != null)
                           ? DecorationImage(
                               image: NetworkImage(
-                                // Simple logic to resolve URL - adjust based on your AppConfig
-                                _currentUser!['url_imagen_perfil'].startsWith('http') 
-                                  ? _currentUser!['url_imagen_perfil']
-                                  : '${AppConfig.baseUrl}/${_currentUser!['url_imagen_perfil'].replaceAll('//', '/')}'
+                                AppConfig.resolveImageUrl(_currentUser!['url_imagen_perfil'])
                               ),
                               fit: BoxFit.cover,
                             )

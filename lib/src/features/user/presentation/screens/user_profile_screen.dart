@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:ping_go/src/global/services/auth/user_service.dart';
+import 'package:ping_go/src/core/config/app_config.dart';
 
 /// Pantalla completa de perfil del usuario
 /// Incluye información personal, foto, ajustes y opciones
@@ -152,17 +153,25 @@ class _UserProfileScreenState extends State<UserProfileScreen> {
                             const Color(0xFFFFFF00).withOpacity(0.1),
                           ],
                         ),
+                        image: (_userData != null && _userData!['url_imagen_perfil'] != null)
+                             ? DecorationImage(
+                                 image: NetworkImage(AppConfig.resolveImageUrl(_userData!['url_imagen_perfil'])),
+                                 fit: BoxFit.cover,
+                               )
+                             : null,
                       ),
-                      child: Center(
-                        child: Text(
-                          nombre.isNotEmpty ? nombre[0].toUpperCase() : 'U',
-                          style: const TextStyle(
-                            color: Color(0xFFFFFF00),
-                            fontSize: 40,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
+                      child: (_userData == null || _userData!['url_imagen_perfil'] == null) 
+                          ? Center(
+                            child: Text(
+                              nombre.isNotEmpty ? nombre[0].toUpperCase() : 'U',
+                              style: const TextStyle(
+                                color: Color(0xFFFFFF00),
+                                fontSize: 40,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          )
+                          : null,
                     ),
                     Positioned(
                       bottom: 0,

@@ -96,6 +96,15 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
                 },
               ),
               _ManagementItem(
+                title: 'Cobro de Comisiones',
+                subtitle: 'Gestionar deudas y pagos de conductores',
+                icon: Icons.payments_rounded,
+                accentColor: const Color(0xFF00C853),
+                onTap: () {
+                  Navigator.pushNamed(context, RouteNames.adminCommissions);
+                },
+              ),
+              _ManagementItem(
                 title: 'Clientes',
                 subtitle: 'Ver y gestionar clientes registrados',
                 icon: Icons.person_outline_rounded,

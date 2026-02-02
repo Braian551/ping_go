@@ -34,6 +34,7 @@ class RouteNames {
   static const String adminConductorDocs = '/admin/conductor-docs';
   static const String adminPendingDrivers = '/admin/pending-drivers';
   static const String adminRates = '/admin/rates';
+  static const String adminCommissions = '/admin/commissions';
   
   // Rutas de conductor
   static const String conductorHome = '/conductor/home';

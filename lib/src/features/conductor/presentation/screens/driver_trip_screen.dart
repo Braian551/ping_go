@@ -7,6 +7,7 @@ import 'package:geolocator/geolocator.dart';
 import '../../../../global/services/osm_service.dart';
 import '../../services/conductor_service.dart';
 import 'trip_summary_screen.dart';
+import '../../../../core/config/app_config.dart';
 
 class DriverTripScreen extends StatefulWidget {
   final Map<String, dynamic> tripData;
@@ -207,11 +208,23 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
     }
 
     // Attempt update
+    // Attempt update
     final solicitudId = int.parse(widget.tripData['solicitud_id'].toString());
+    
+    double? finalDist;
+    int? finalDur;
+    
+    if (backendState == 'completada') {
+       finalDist = _accumulatedDistanceKm;
+       finalDur = _tripDuration.inSeconds;
+    }
+
     final success = await ConductorService.updateTripStatus(
       solicitudId: solicitudId, 
       estado: backendState,
       conductorId: widget.conductorId,
+      distanciaKm: finalDist,
+      duracionSegundos: finalDur,
     );
     
     if (success) {
@@ -394,7 +407,7 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
                        CircleAvatar(
                         radius: 25,
                         backgroundImage: (widget.tripData['cliente_foto'] != null)
-                            ? NetworkImage(widget.tripData['cliente_foto'])
+                            ? NetworkImage(AppConfig.resolveImageUrl(widget.tripData['cliente_foto']))
                             : null,
                         child: (widget.tripData['cliente_foto'] == null) 
                           ? const Icon(Icons.person) : null,
