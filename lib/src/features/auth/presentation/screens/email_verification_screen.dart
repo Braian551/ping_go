@@ -11,11 +11,13 @@ import 'dart:async';
 class EmailVerificationScreen extends StatefulWidget {
   final String email;
   final String userName;
+  final bool isForgotPassword;
 
   const EmailVerificationScreen({
     super.key,
     required this.email,
     required this.userName,
+    this.isForgotPassword = false,
   });
 
   @override
@@ -36,7 +38,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
   void initState() {
     super.initState();
     _codeController = TextEditingController();
-    _sendVerificationCode();
+    if (!widget.isForgotPassword) {
+      _sendVerificationCode();
+    }
     _startResendCountdown();
   }
 
@@ -101,7 +105,17 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     setState(() => _isResending = true);
     
     try {
-      await _sendVerificationCode();
+      if (widget.isForgotPassword) {
+        // Para olvido de contraseña, volver a solicitar al backend
+        final resp = await UserService.requestPasswordReset(widget.email);
+        if (resp['success'] == true) {
+          if (mounted) CustomSnackbar.showSuccess(context, message: 'Código reenviado');
+        } else {
+          if (mounted) CustomSnackbar.showError(context, message: resp['message'] ?? 'Error al reenviar');
+        }
+      } else {
+        await _sendVerificationCode();
+      }
       
       if (!mounted || _isDisposed) return;
       
@@ -122,14 +136,48 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
     
     final inputCode = _codeController!.text.trim();
     
-    if (inputCode == _verificationCode) {
-      // Cancelar el timer antes de verificar
-      _countdownTimer?.cancel();
-      
-      setState(() => _isVerifying = true);
+    // Si NO es olvido de contraseña, verificar localmente
+    if (!widget.isForgotPassword && inputCode != _verificationCode) {
+      await DialogHelper.showError(
+        context,
+        title: 'Código Incorrecto',
+        message: 'El código de verificación que ingresaste no es válido. Por favor, verifica e intenta nuevamente.',
+        primaryButtonText: 'Reintentar',
+      );
+      return;
+    }
+
+    // Cancelar el timer antes de verificar
+    _countdownTimer?.cancel();
+    
+    setState(() => _isVerifying = true);
       
       try {
-        // Verificar si el usuario ya existe en la base de datos
+        if (widget.isForgotPassword) {
+          // Si es para olvido de contraseña, ir a ResetPasswordScreen
+          if (mounted && !_isDisposed) {
+            CustomSnackbar.showSuccess(
+              context,
+              message: '¡Correo verificado! Escribe tu nueva contraseña',
+              duration: const Duration(milliseconds: 1200),
+            );
+            await Future.delayed(const Duration(milliseconds: 1200));
+          }
+
+          if (!mounted || _isDisposed) return;
+          
+          Navigator.pushReplacementNamed(
+            context,
+            RouteNames.resetPassword,
+            arguments: {
+              'email': widget.email,
+              'code': inputCode,
+            },
+          );
+          return;
+        }
+
+        // Verificar si el usuario ya existe en la base de datos (flujo normal de registro/login)
         final bool userExists = await UserService.checkUserExists(widget.email);
         
         if (!mounted || _isDisposed) return;
@@ -204,18 +252,9 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
             'userName': widget.userName,
           },
         );
-      } finally {
-        if (!mounted || _isDisposed) return;
-        setState(() => _isVerifying = false);
-      }
-    } else {
-      // Código incorrecto
-      await DialogHelper.showError(
-        context,
-        title: 'Código Incorrecto',
-        message: 'El código de verificación que ingresaste no es válido. Por favor, verifica e intenta nuevamente.',
-        primaryButtonText: 'Reintentar',
-      );
+    } finally {
+      if (!mounted || _isDisposed) return;
+      setState(() => _isVerifying = false);
     }
   }
 

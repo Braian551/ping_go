@@ -2,6 +2,8 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 import 'package:ping_go/src/features/conductor/services/conductor_service.dart';
 import 'package:ping_go/src/global/services/auth/user_service.dart';
 import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
@@ -69,7 +71,21 @@ class _ConductorRegistrationScreenState extends State<ConductorRegistrationScree
     _colorController.dispose();
     _aseguradoraController.dispose();
     _polizaController.dispose();
+    _cleanupTemporaryFiles();
     super.dispose();
+  }
+
+  Future<void> _cleanupTemporaryFiles() async {
+    try {
+      if (_licenciaFrente != null && await _licenciaFrente!.exists()) {
+        await _licenciaFrente!.delete();
+      }
+      if (_licenciaReverso != null && await _licenciaReverso!.exists()) {
+        await _licenciaReverso!.delete();
+      }
+    } catch (e) {
+      print('Error limpiando archivos temporales: $e');
+    }
   }
 
   Future<void> _pickImage({required bool isFrente}) async {
@@ -114,11 +130,16 @@ class _ConductorRegistrationScreenState extends State<ConductorRegistrationScree
       );
       
       if (pickedFile != null) {
+        // Copiar el archivo a un directorio permanente para evitar que desaparezca
+        final directory = await getApplicationDocumentsDirectory();
+        final fileName = '${isFrente ? "frente" : "reverso"}_${DateTime.now().millisecondsSinceEpoch}${p.extension(pickedFile.path)}';
+        final savedImage = await File(pickedFile.path).copy('${directory.path}/$fileName');
+
         setState(() {
           if (isFrente) {
-            _licenciaFrente = File(pickedFile.path);
+            _licenciaFrente = savedImage;
           } else {
-            _licenciaReverso = File(pickedFile.path);
+            _licenciaReverso = savedImage;
           }
         });
       }
@@ -209,26 +230,45 @@ class _ConductorRegistrationScreenState extends State<ConductorRegistrationScree
       if (result['success'] == true) {
         // 2. Subir imágenes si el registro fue exitoso
         bool imagesUploaded = true;
-        
+        String uploadErrorMessage = '';
         try {
-          final FrenteOk = await ConductorService.uploadDocument(
+          // Verificar que los archivos aún existen físicamente
+          if (!await _licenciaFrente!.exists()) {
+            throw Exception('El archivo de la licencia (frente) no se encuentra en el dispositivo. Por favor, selecciona la foto de nuevo.');
+          }
+          if (!await _licenciaReverso!.exists()) {
+            throw Exception('El archivo de la licencia (reverso) no se encuentra en el dispositivo. Por favor, selecciona la foto de nuevo.');
+          }
+
+          final frenteResult = await ConductorService.uploadDocument(
             conductorId: userId, 
             filePath: _licenciaFrente!.path, 
             type: 'licencia_frente'
           );
           
-          final ReversoOk = await ConductorService.uploadDocument(
+          final reversoResult = await ConductorService.uploadDocument(
             conductorId: userId, 
             filePath: _licenciaReverso!.path, 
             type: 'licencia_reverso'
           );
           
-          if (!FrenteOk || !ReversoOk) {
+          if (frenteResult['success'] != true || reversoResult['success'] != true) {
             imagesUploaded = false;
+            uploadErrorMessage = frenteResult['success'] != true 
+                ? frenteResult['message'] 
+                : reversoResult['message'];
           }
         } catch (e) {
           imagesUploaded = false;
+          uploadErrorMessage = e.toString();
           print('Error subiendo imágenes: $e');
+        }
+
+        // Limpiar archivos locales después del intento de subida (exitoso o no, ya que se informará al usuario)
+        // O mejor: solo si fue exitoso para permitir reintento si sigue en la pantalla.
+        // Pero el usuario pidió borrar al terminar. 
+        if (imagesUploaded) {
+          _cleanupTemporaryFiles();
         }
 
         if (!mounted) return;
@@ -240,9 +280,9 @@ class _ConductorRegistrationScreenState extends State<ConductorRegistrationScree
           );
           Navigator.pop(context, true);
         } else {
-          CustomSnackbar.showWarning( // Warning instead of error since the request was created
+          CustomSnackbar.showWarning( 
             context, 
-            message: 'Solicitud creada pero hubo error al subir documentos. Intenta contactar soporte.',
+            message: 'Solicitud creada pero hubo error al subir documentos: $uploadErrorMessage',
           );
           Navigator.pop(context, true);
         }

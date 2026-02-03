@@ -1388,7 +1388,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
           _navAnimationController.reset();
           _navAnimationController.forward();
           if (index == 3) {
-            _loadUserStats();
+            _loadUserData();
           }
         },
         child: AnimatedContainer(
@@ -1481,11 +1481,14 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
               Navigator.pushNamed(context, RouteNames.conductorRegistration);
             },
           );
+        } else {
+          // No hay solicitud previa o error (asumimos no hay solicitud si data es null)
+          // Ir a registro
+          final refresh = await Navigator.pushNamed(context, RouteNames.conductorRegistration);
+          if (refresh == true) {
+            _loadUserData();
+          }
         }
-      } else {
-        // No hay solicitud previa o error (asumimos no hay solicitud si data es null)
-        // Ir a registro
-        Navigator.pushNamed(context, RouteNames.conductorRegistration);
       }
     } catch (e) {
       if (mounted) {

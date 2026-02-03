@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:ping_go/src/global/services/auth/user_service.dart';
+import '../../services/conductor_service.dart';
 import '../widgets/conductor_app_bar.dart';
 import '../widgets/conductor_bottom_nav.dart';
 import '../views/conductor_dashboard_view.dart';
@@ -30,7 +32,75 @@ class _ConductorHomeScreenState extends State<ConductorHomeScreen> {
     // Force refresh to get latest data (including profile image if not in session)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _refreshUserData();
+      _checkLocationPermissions();
     });
+  }
+
+  Future<void> _checkLocationPermissions() async {
+    bool serviceEnabled;
+    LocationPermission permission;
+
+    // 1. Verificar si el servicio de ubicación está habilitado
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      if (mounted) {
+        _showLocationDialog(
+          'Servicios de ubicación desactivados',
+          'Por favor, activa el GPS para poder trabajar como conductor.',
+          onAction: () => Geolocator.openLocationSettings(),
+        );
+      }
+      return;
+    }
+
+    // 2. Verificar permisos
+    permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Es obligatorio permitir la ubicación para usar el modo conductor.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        return;
+      }
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      if (mounted) {
+        _showLocationDialog(
+          'Permisos de ubicación denegados',
+          'Has denegado permanentemente los permisos. Debes activarlos desde la configuración para poder recibir viajes.',
+          onAction: () => Geolocator.openAppSettings(),
+        );
+      }
+      return;
+    }
+  }
+
+  void _showLocationDialog(String title, String message, {required VoidCallback onAction}) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: Text(title, style: const TextStyle(color: Colors.white)),
+        content: Text(message, style: const TextStyle(color: Colors.white70)),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              onAction();
+            },
+            child: const Text('CONFIGURAR', style: TextStyle(color: Color(0xFFFFFF00))),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _refreshUserData() async {
@@ -42,9 +112,20 @@ class _ConductorHomeScreenState extends State<ConductorHomeScreen> {
         if (userId != null) {
           final profile = await UserService.getProfile(userId: userId, email: email);
           if (profile != null && profile['success'] == true) {
+            Map<String, dynamic> updatedUser = Map<String, dynamic>.from(profile['user']);
+            
+            // Si es conductor, obtener info adicional (como tipo_vehiculo)
+            if (updatedUser['tipo_usuario'] == 'conductor') {
+              final condInfo = await ConductorService.getConductorInfo(userId);
+              if (condInfo != null) {
+                updatedUser.addAll(condInfo);
+              }
+            }
+
             if (mounted) {
               setState(() {
-                _currentUser = profile['user'];
+                // Combinar con los datos actuales para no perder nada
+                _currentUser = {..._currentUser, ...updatedUser};
               });
             }
           }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:ping_go/src/global/services/admin/admin_service.dart';
 import 'package:ping_go/src/widgets/avatars/custom_user_avatar.dart';
+import '../../../conductor/presentation/widgets/payment_detail_sheet.dart';
 
 class DriverCommissionScreen extends StatefulWidget {
   const DriverCommissionScreen({super.key});
@@ -141,7 +142,7 @@ class _DriverCommissionScreenState extends State<DriverCommissionScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Deuda total: \$${NumberFormat.currency(locale: 'es_CO', symbol: '').format(totalDebt)}',
+                    'Deuda total: \$${NumberFormat.currency(locale: 'es_CO', symbol: '', decimalDigits: 0).format(totalDebt)}',
                     style: TextStyle(color: Colors.redAccent.withOpacity(0.8), fontSize: 13),
                   ),
                   const SizedBox(height: 32),
@@ -301,7 +302,7 @@ class _DriverCommissionScreenState extends State<DriverCommissionScreen> {
                         border: Border.all(color: Colors.red.withOpacity(0.5)),
                       ),
                       child: Text(
-                        '\$${NumberFormat.currency(locale: 'es_CO', symbol: '').format(debt)}',
+                        '\$${NumberFormat.currency(locale: 'es_CO', symbol: '', decimalDigits: 0).format(debt)}',
                         style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
                       ),
                     ),
@@ -346,11 +347,24 @@ class _DriverCommissionScreenState extends State<DriverCommissionScreen> {
         final double amount = double.tryParse(item['monto_pagado'].toString()) ?? 0.0;
         final DateTime date = DateTime.parse(item['fecha_pago']);
 
-        return Card(
-          color: const Color(0xFF2C2C2C),
-          margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: ListTile(
+        return GestureDetector(
+          onTap: () {
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Colors.transparent,
+              isScrollControlled: true,
+              builder: (context) => PaymentDetailSheet(
+                conductorId: int.parse(item['conductor_id'].toString()),
+                payment: item,
+                fetcher: AdminService.getPaymentDetails,
+              ),
+            );
+          },
+          child: Card(
+            color: const Color(0xFF2C2C2C),
+            margin: const EdgeInsets.only(bottom: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            child: ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             leading: CustomUserAvatar(
               imageUrl: item['url_imagen_perfil'],
@@ -375,11 +389,11 @@ class _DriverCommissionScreenState extends State<DriverCommissionScreen> {
               ],
             ),
             trailing: Text(
-              '\$${NumberFormat.currency(locale: 'es_CO', symbol: '').format(amount)}',
+              '\$${NumberFormat.currency(locale: 'es_CO', symbol: '', decimalDigits: 0).format(amount)}',
               style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 15),
             ),
           ),
-        );
+        ),);
       },
     );
   }

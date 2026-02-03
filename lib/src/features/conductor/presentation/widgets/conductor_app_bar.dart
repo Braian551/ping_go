@@ -29,7 +29,13 @@ class ConductorAppBar extends StatelessWidget implements PreferredSizeWidget {
               shape: BoxShape.circle,
               color: const Color(0xFFFFFF00).withOpacity(0.1),
             ),
-            child: const Icon(Icons.drive_eta_rounded, color: Color(0xFFFFFF00), size: 24),
+            child: Icon(
+              (conductorUser['tipo_vehiculo']?.toString().toLowerCase() == 'motocicleta')
+                  ? Icons.two_wheeler_rounded
+                  : Icons.directions_car_rounded,
+              color: const Color(0xFFFFFF00),
+              size: 24,
+            ),
           ),
           const SizedBox(width: 8),
           Column(

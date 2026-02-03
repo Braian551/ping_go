@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:ping_go/src/core/config/app_config.dart';
 import '../../services/conductor_service.dart';
+import '../widgets/payment_detail_sheet.dart';
 
 class ConductorEarningsScreen extends StatefulWidget {
   final Map<String, dynamic> conductorUser;
@@ -196,7 +197,7 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                   NumberFormat.currency(locale: 'es_CO', symbol: '\$').format(_totalEarnings),
+                   NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0).format(_totalEarnings),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 34,
@@ -269,7 +270,7 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
           ),
           const SizedBox(height: 24),
           Text(
-             NumberFormat.currency(locale: 'es_CO', symbol: '\$').format(_currentDebt),
+             NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0).format(_currentDebt),
             style: TextStyle(
               color: hasDebt ? Colors.redAccent : Colors.greenAccent,
               fontSize: 32,
@@ -347,15 +348,27 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
         final amount = double.tryParse(item['monto_pagado'].toString()) ?? 0.0;
         final date = DateTime.parse(item['fecha_pago']);
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white.withOpacity(0.05)),
-          ),
-          child: Row(
+        return GestureDetector(
+          onTap: () {
+            showModalBottomSheet(
+              context: context,
+              backgroundColor: Colors.transparent,
+              isScrollControlled: true,
+              builder: (context) => PaymentDetailSheet(
+                conductorId: widget.conductorUser['id'],
+                payment: item,
+              ),
+            );
+          },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withOpacity(0.05)),
+            ),
+            child: Row(
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
@@ -385,7 +398,7 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    NumberFormat.currency(locale: 'es_CO', symbol: '\$').format(amount),
+                    NumberFormat.currency(locale: 'es_CO', symbol: '\$', decimalDigits: 0).format(amount),
                     style: const TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 16),
                   ),
                   Text(
@@ -396,7 +409,7 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
               ),
             ],
           ),
-        );
+        ),);
       },
     );
   }

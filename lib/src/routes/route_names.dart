@@ -25,6 +25,8 @@ class RouteNames {
   static const String about = '/about';
   static const String terms = '/terms';
   static const String privacy = '/privacy';
+  static const String forgotPassword = '/forgot-password';
+  static const String resetPassword = '/reset-password';
   
   // Rutas de administrador
   static const String adminHome = '/admin/home';

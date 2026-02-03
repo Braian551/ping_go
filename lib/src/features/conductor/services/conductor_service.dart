@@ -383,7 +383,7 @@ class ConductorService {
     }
   }
   /// Subir documento de conductor
-  static Future<bool> uploadDocument({
+  static Future<Map<String, dynamic>> uploadDocument({
     required int conductorId,
     required String filePath,
     required String type, // 'licencia_frente' or 'licencia_reverso'
@@ -402,13 +402,16 @@ class ConductorService {
       print('Respuesta uploadDocument ($type): ${response.body}');
       
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        return data['success'] == true;
+        return jsonDecode(response.body);
       }
-      return false;
+      try {
+        return jsonDecode(response.body);
+      } catch (_) {
+        return {'success': false, 'message': 'Error del servidor (${response.statusCode})'};
+      }
     } catch (e) {
       print('Error subiendo documento $type: $e');
-      return false;
+      return {'success': false, 'message': e.toString()};
     }
   }
   
@@ -516,6 +519,23 @@ class ConductorService {
       return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
     } catch (e) {
       print('Error obteniendo historial de comisiones: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+  /// Obtener detalles de un pago específico (lista de viajes liquidados)
+  static Future<Map<String, dynamic>> getPaymentDetails(int conductorId, String fechaPago) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/get_payment_details.php?conductor_id=$conductorId&fecha_pago=$fechaPago'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+    } catch (e) {
+      print('Error obteniendo detalles del pago: $e');
       return {'success': false, 'message': e.toString()};
     }
   }

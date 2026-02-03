@@ -31,6 +31,7 @@ class _ConductorDashboardViewState extends State<ConductorDashboardView> {
   @override
   void initState() {
     super.initState();
+    _vehicleType = widget.conductorUser['tipo_vehiculo'];
     _fetchStats();
   }
 
@@ -592,7 +593,9 @@ class _ConductorDashboardViewState extends State<ConductorDashboardView> {
                 child: _buildGlassStatCard(
                   'Viajes',
                   _viajes,
-                  Icons.local_taxi_rounded,
+                  (_vehicleType?.toLowerCase() == 'motocicleta')
+                      ? Icons.two_wheeler_rounded
+                      : Icons.directions_car_rounded,
                   Colors.orange,
                 ),
               ),

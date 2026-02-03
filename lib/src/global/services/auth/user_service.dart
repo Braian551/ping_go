@@ -437,4 +437,53 @@ class UserService {
       return {'success': false, 'message': e.toString()};
     }
   }
+  static Future<Map<String, dynamic>> requestPasswordReset(String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.authServiceUrl}/request_password_reset.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({'email': email}),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+    } catch (e) {
+      print('Error en requestPasswordReset: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${AppConfig.authServiceUrl}/reset_password.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'email': email,
+          'code': code,
+          'newPassword': newPassword,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      }
+      return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+    } catch (e) {
+      print('Error en resetPassword: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }

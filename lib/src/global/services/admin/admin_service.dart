@@ -551,4 +551,21 @@ class AdminService {
       return {'success': false, 'message': 'Error de conexión: $e'};
     }
   }
+  static Future<Map<String, dynamic>> getPaymentDetails(int conductorId, String fechaPago) async {
+    try {
+      // Usamos el endpoint del conductor que ya creamos y funciona
+      final response = await http.get(
+        Uri.parse('${AppConfig.conductorServiceUrl}/get_payment_details.php?conductor_id=$conductorId&fecha_pago=$fechaPago'),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+    } catch (e) {
+      print('Error obteniendo detalles del pago: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }

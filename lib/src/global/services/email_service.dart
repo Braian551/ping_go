@@ -71,9 +71,11 @@ class EmailService {
     required String email,
     required String code,
     required String userName,
-    bool? useMock, // Si es null, usa mock en desarrollo
+    bool? useMock,
   }) async {
-    final shouldUseMock = useMock ?? (AppConfig.environment == Environment.development);
+    // Si useMock es explícitamente true, usar mock. 
+    // De lo contrario, intentar usar el servicio real.
+    final shouldUseMock = useMock ?? false;
     
     if (shouldUseMock) {
       return await sendVerificationCodeMock(

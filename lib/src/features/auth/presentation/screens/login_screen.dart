@@ -256,7 +256,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     alignment: Alignment.centerRight,
                     child: TextButton(
                       onPressed: () {
-                        _showError('Función en desarrollo');
+                        Navigator.pushNamed(context, RouteNames.forgotPassword);
                       },
                       child: const Text(
                         '¿Olvidaste tu contraseña?',
