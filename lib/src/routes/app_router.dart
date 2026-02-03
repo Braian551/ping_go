@@ -22,6 +22,7 @@ import 'package:ping_go/src/features/admin/presentation/screens/statistics_scree
 import 'package:ping_go/src/features/admin/presentation/screens/audit_logs_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/admin_rates_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/driver_commission_screen.dart';
+import 'package:ping_go/src/features/admin/presentation/screens/conductor_documents_screen.dart';
 import 'package:ping_go/src/features/conductor/presentation/screens/conductor_home_screen.dart';
 import 'package:ping_go/src/routes/route_names.dart';
 import 'package:ping_go/src/routes/animated_routes.dart';
@@ -181,6 +182,8 @@ class AppRouter {
             ),
           );
         }
+      case RouteNames.adminConductorDocuments:
+        return MaterialPageRoute(builder: (_) => const ConductorDocumentsScreen());
       case RouteNames.adminRates:
         return MaterialPageRoute(
           builder: (_) => const AdminRatesScreen(),

@@ -4,6 +4,7 @@ import 'package:ping_go/src/global/services/admin/admin_service.dart';
 import 'package:ping_go/src/routes/route_names.dart';
 import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:intl/intl.dart';
 
 class AdminDashboardTab extends StatefulWidget {
   final Map<String, dynamic> adminUser;
@@ -592,10 +593,16 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> with AutomaticKee
     );
   }
 
+  final _currencyFormat = NumberFormat.currency(
+    locale: 'es_CO',
+    symbol: '',
+    decimalDigits: 0,
+  );
+
   String _formatNumber(dynamic value) {
     if (value == null) return '0';
     final num = double.tryParse(value.toString()) ?? 0;
-    return num.toStringAsFixed(0);
+    return _currencyFormat.format(num).trim();
   }
 
   String _formatDate(String? dateStr) {

@@ -1449,45 +1449,57 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
       if (!mounted) return;
       Navigator.pop(context); // Cerrar loader
 
-      if (result['success'] == true && result['data'] != null) {
-        final data = result['data'];
-        final status = data['estado_aprobacion'];
-        final aprobado = data['aprobado'] == 1 || data['aprobado'] == true;
+      if (result['success'] == true) {
+        if (result['data'] != null) {
+          final data = result['data'];
+          final status = data['estado_aprobacion'];
+          final aprobado = data['aprobado'] == 1 || data['aprobado'] == true;
 
-        if (aprobado && status == 'aprobado') {
-          // Ya es conductor aprobado
-          Navigator.pushReplacementNamed(
-            context, 
-            RouteNames.conductorHome,
-            arguments: {'conductor_user': session},
-          );
-        } else if (status == 'pendiente') {
-          _showStatusDialog(
-            title: 'Solicitud en Revisión',
-            description: 'Tu solicitud está siendo procesada por nuestro equipo. Te notificaremos cuando haya una actualización.',
-            icon: Icons.hourglass_top_rounded,
-            color: Colors.orange,
-          );
-        } else if (status == 'rechazado') {
-          final motivo = data['motivo_rechazo'] ?? 'No especificado';
-          _showStatusDialog(
-            title: 'Solicitud Rechazada',
-            description: 'Motivo: $motivo\n\nPuedes corregir tu información y enviar una nueva solicitud.',
-            icon: Icons.cancel_outlined,
-            color: Colors.red,
-            actionLabel: 'Intentar de nuevo',
-            onAction: () {
-              Navigator.pop(context); // Cerrar dialogo actual
-              Navigator.pushNamed(context, RouteNames.conductorRegistration);
-            },
-          );
+          if (aprobado && status == 'aprobado') {
+            // Ya es conductor aprobado
+            Navigator.pushReplacementNamed(
+              context, 
+              RouteNames.conductorHome,
+              arguments: {'conductor_user': session},
+            );
+          } else if (status == 'pendiente') {
+            _showStatusDialog(
+              title: 'Solicitud en Revisión',
+              description: 'Tu solicitud está siendo procesada por nuestro equipo. Te notificaremos cuando haya una actualización.',
+              icon: Icons.hourglass_top_rounded,
+              color: Colors.orange,
+            );
+          } else if (status == 'rechazado') {
+            final motivo = data['motivo_rechazo'] ?? 'No especificado';
+            _showStatusDialog(
+              title: 'Solicitud Rechazada',
+              description: 'Motivo: $motivo\n\nPuedes corregir tu información y enviar una nueva solicitud.',
+              icon: Icons.cancel_outlined,
+              color: Colors.red,
+              actionLabel: 'Intentar de nuevo',
+              onAction: () {
+                Navigator.pop(context); // Cerrar dialogo actual
+                Navigator.pushNamed(context, RouteNames.conductorRegistration);
+              },
+            );
+          } else {
+            // Caso inesperado pero con datos, ir a registro por si acaso
+            final refresh = await Navigator.pushNamed(context, RouteNames.conductorRegistration);
+            if (refresh == true) {
+              _loadUserData();
+            }
+          }
         } else {
-          // No hay solicitud previa o error (asumimos no hay solicitud si data es null)
-          // Ir a registro
+          // No hay perfil de conductor (data == null), ir a registro
           final refresh = await Navigator.pushNamed(context, RouteNames.conductorRegistration);
           if (refresh == true) {
             _loadUserData();
           }
+        }
+      } else {
+        // Error en la consulta pero la petición fue exitosa (success: false)
+        if (mounted) {
+          CustomSnackbar.showError(context, message: result['message'] ?? 'Error al verificar estado');
         }
       }
     } catch (e) {

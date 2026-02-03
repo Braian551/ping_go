@@ -87,6 +87,15 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
                   Navigator.pushNamed(context, RouteNames.adminCommissions);
                 },
               ),
+              _ManagementItem(
+                title: 'Documentos de conductores',
+                subtitle: 'Licencias, vehículos y registros',
+                icon: Icons.folder_shared_rounded,
+                accentColor: const Color(0xFFFFFF00),
+                onTap: () {
+                  Navigator.pushNamed(context, RouteNames.adminConductorDocuments);
+                },
+              ),
             ],
           ),
           const SizedBox(height: 30),

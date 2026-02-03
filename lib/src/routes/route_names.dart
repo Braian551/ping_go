@@ -35,6 +35,7 @@ class RouteNames {
   static const String adminAuditLogs = '/admin/audit-logs';
   static const String adminConductorDocs = '/admin/conductor-docs';
   static const String adminPendingDrivers = '/admin/pending-drivers';
+  static const String adminConductorDocuments = '/admin/conductor_documents';
   static const String adminRates = '/admin/rates';
   static const String adminCommissions = '/admin/commissions';
   

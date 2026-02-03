@@ -341,6 +341,28 @@ class AdminService {
     }
   }
 
+  /// Obtener lista de todos los conductores con sus documentos
+  static Future<Map<String, dynamic>> getConductorsDocs() async {
+    try {
+      final url = '$_baseUrl/get_conductor_list.php';
+      print('AdminService: Llamando a getConductorsDocs: $url');
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {'Accept': 'application/json'},
+      );
+
+      print('AdminService: Respuesta getConductorsDocs (${response.statusCode})');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error en getConductorsDocs: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
   /// Obtener conductores pendientes de aprobación
   static Future<Map<String, dynamic>> getPendingConductors() async {
     try {
