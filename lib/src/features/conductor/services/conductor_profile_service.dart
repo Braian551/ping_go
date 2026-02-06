@@ -23,8 +23,8 @@ class ConductorProfileService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        if (data['success'] == true && data['profile'] != null) {
-          return ConductorProfileModel.fromJson(data['profile']);
+        if (data['success'] == true && data['data'] != null) {
+          return ConductorProfileModel.fromJson(data['data']);
         }
       }
       return null;

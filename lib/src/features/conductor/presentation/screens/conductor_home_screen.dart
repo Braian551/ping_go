@@ -8,6 +8,7 @@ import '../views/conductor_dashboard_view.dart';
 import '../views/conductor_map_view.dart';
 import '../views/conductor_history_view.dart';
 import '../views/conductor_profile_view.dart';
+import '../../models/vehicle_model.dart';
 
 class ConductorHomeScreen extends StatefulWidget {
   final Map<String, dynamic> conductorUser;
@@ -161,7 +162,12 @@ class _ConductorHomeScreenState extends State<ConductorHomeScreen> {
       case 0:
         return ConductorDashboardView(key: const ValueKey(0), conductorUser: _currentUser);
       case 1:
-        return const ConductorMapView(key: ValueKey(1));
+        return ConductorMapView(
+          key: const ValueKey(1),
+          vehicleType: _currentUser['tipo_vehiculo'] != null 
+              ? VehicleType.fromString(_currentUser['tipo_vehiculo'].toString())
+              : null,
+        );
       case 2:
         return ConductorHistoryView(key: const ValueKey(2), conductorUser: _currentUser);
       case 3:

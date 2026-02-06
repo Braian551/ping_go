@@ -236,7 +236,7 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
             final finalDist = _accumulatedDistanceKm;
             final finalDurSeconds = _tripDuration.inSeconds;
 
-            Navigator.pushReplacement(
+            Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (context) => TripSummaryScreen(
@@ -246,7 +246,9 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
                   conductorId: widget.conductorId,
                 ),
               ),
-            );
+            ).then((_) {
+               if (mounted) Navigator.pop(context);
+            });
         } else {
             setState(() {
                 _currentStatus = nextState;

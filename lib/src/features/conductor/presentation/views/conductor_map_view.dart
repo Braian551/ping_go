@@ -13,7 +13,12 @@ import '../../models/conductor_profile_model.dart';
 import '../../models/vehicle_model.dart';
 
 class ConductorMapView extends StatefulWidget {
-  const ConductorMapView({super.key});
+  final VehicleType? vehicleType;
+
+  const ConductorMapView({
+    super.key,
+    this.vehicleType,
+  });
 
   @override
   State<ConductorMapView> createState() => _ConductorMapViewState();
@@ -25,7 +30,7 @@ class _ConductorMapViewState extends State<ConductorMapView> {
   // Estados para datos y UI
   LatLng? _currentPosition;
   double? _heading;
-  VehicleType _vehicleType = VehicleType.carro; // Por defecto
+  late VehicleType _vehicleType;
   bool _isLoading = true;
   bool _isMapReady = false;
 
@@ -36,27 +41,45 @@ class _ConductorMapViewState extends State<ConductorMapView> {
   @override
   void initState() {
     super.initState();
+    _vehicleType = widget.vehicleType ?? VehicleType.carro;
     _initializeData();
+  }
+
+  @override
+  void didUpdateWidget(ConductorMapView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.vehicleType != oldWidget.vehicleType && widget.vehicleType != null) {
+      setState(() {
+        _vehicleType = widget.vehicleType!;
+      });
+    }
   }
 
   @override
   void dispose() {
     _positionStream?.cancel();
     _compassStream?.cancel();
-    _mapController.dispose();
+    // NOTA: MapController no tiene dispose() en flutter_map 8.x
     super.dispose();
   }
 
   Future<void> _initializeData() async {
     try {
-      // 1. Cargar tipo de vehículo del conductor
-      await _loadVehicleInfo();
+      // 1. Cargar tipo de vehículo del conductor (Solo si no viene del widget)
+      if (widget.vehicleType == null) {
+        await _loadVehicleInfo();
+      }
 
-      // 2. Iniciar listeners de ubicación y brújula
+      if (!mounted) return;
+
+      // 2. Iniciar listeners de ubicación y brújula de forma asíncrona
+      // No necesitamos esperar a que terminen para continuar
       _startLocationStream();
       _startCompassStream();
 
-      // 3. Obtener ubicación inicial (optimizada)
+      // 3. Obtener ubicación inicial
+      setState(() => _isLoading = true);
+
       // Primero intentamos getLastKnownPosition para respuesta inmediata
       final lastKnown = await Geolocator.getLastKnownPosition();
       
@@ -69,20 +92,27 @@ class _ConductorMapViewState extends State<ConductorMapView> {
       }
 
       // Luego intentamos getCurrentPosition para mayor precisión
-      final position = await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 10), // Increased timeout
-      );
-      
-      if (mounted) {
-        setState(() {
-          _currentPosition = LatLng(position.latitude, position.longitude);
-          _isLoading = false;
-        });
+      // Usamos un timeout razonable y manejamos errores
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.medium, // Medium es más rápido
+          timeLimit: const Duration(seconds: 5),
+        );
         
-        // Solo mover si es la primera vez o si nos movimos significativamente
-        if (_currentPosition!.latitude != 0 && _currentPosition!.longitude != 0) {
-             _safeMoveMap(_currentPosition!);
+        if (mounted) {
+          setState(() {
+            _currentPosition = LatLng(position.latitude, position.longitude);
+            _isLoading = false;
+          });
+          _safeMoveMap(_currentPosition!);
+        }
+      } catch (e) {
+        print('Error obteniendo ubicación actual (continuando con última conocida): $e');
+        if (mounted && _currentPosition != null) {
+          setState(() => _isLoading = false);
+        } else if (mounted) {
+          // Si no tenemos ni la última conocida, marcamos como error
+          setState(() => _isLoading = false);
         }
       }
     } catch (e) {
@@ -92,20 +122,20 @@ class _ConductorMapViewState extends State<ConductorMapView> {
       }
     }
   }
-  
+
   void _safeMoveMap(LatLng pos) {
-      if (pos.latitude == 0 && pos.longitude == 0) return;
-      
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          try {
-             _mapController.move(pos, 16.0);
-             _isMapReady = true;
-          } catch (e) {
-             print('Error moving map: $e');
-          }
+    if (pos.latitude == 0 && pos.longitude == 0) return;
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        try {
+          _mapController.move(pos, 16.0);
+          _isMapReady = true;
+        } catch (e) {
+          print('Error moving map: $e');
         }
-      });
+      }
+    });
   }
 
   Future<void> _loadVehicleInfo() async {
@@ -115,7 +145,6 @@ class _ConductorMapViewState extends State<ConductorMapView> {
         final conductorId = int.tryParse(session['id'].toString());
         if (conductorId != null) {
           final profile = await ConductorProfileService.getProfile(conductorId);
-          print('DEBUG: Conductor Profile Vehicle Type: ${profile?.vehiculo?.tipo}');
           if (profile?.vehiculo?.tipo != null) {
             if (mounted) {
               setState(() {

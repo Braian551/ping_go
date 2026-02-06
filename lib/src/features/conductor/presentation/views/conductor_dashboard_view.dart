@@ -20,6 +20,7 @@ class _ConductorDashboardViewState extends State<ConductorDashboardView> {
   Timer? _locationTimer;
   Timer? _assignmentTimer;
   bool _isBusy = false; // To prevent concurrent polling overlaps
+  bool _isFetchingStats = false;
 
   // Stats state
   String _ganancia = '0.00';
@@ -36,6 +37,9 @@ class _ConductorDashboardViewState extends State<ConductorDashboardView> {
   }
 
   Future<void> _fetchStats() async {
+    if (_isFetchingStats) return;
+    _isFetchingStats = true;
+
     try {
        final userId = int.parse(widget.conductorUser['id'].toString());
        final stats = await ConductorService.getEstadisticas(userId);
@@ -68,8 +72,11 @@ class _ConductorDashboardViewState extends State<ConductorDashboardView> {
            _horas = stats['horas_online']?.toString() ?? '0h';
          });
        }
-    } catch (e) {
+     } catch (e) {
       print('Error fetching stats: $e');
+    } finally {
+      _isFetchingStats = false;
+      print('DEBUG: fetchStats completed');
     }
   }
 
@@ -130,7 +137,9 @@ class _ConductorDashboardViewState extends State<ConductorDashboardView> {
 
   Future<void> _updateLocation() async {
     try {
-      final position = await Geolocator.getCurrentPosition();
+      final position = await Geolocator.getCurrentPosition(
+        timeLimit: const Duration(seconds: 10),
+      );
       final userId = int.parse(widget.conductorUser['id'].toString());
       
       await ConductorService.actualizarUbicacion(
