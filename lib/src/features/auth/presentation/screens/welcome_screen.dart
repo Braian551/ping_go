@@ -15,14 +15,8 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
   @override
   void initState() {
     super.initState();
-    _checkSession();
-  }
-
-  Future<void> _checkSession() async {
-    final session = await UserService.getSavedSession();
-    if (session != null && mounted) {
-      Navigator.of(context).pushReplacementNamed(RouteNames.home);
-    }
+    // La sesión ahora es manejada exclusivamente por AuthWrapper
+    // para evitar redirecciones inconsistentes.
   }
 
   @override
@@ -158,8 +152,71 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                             text: 'Continuar con Google',
                             backgroundColor: Colors.white,
                             textColor: Colors.black,
-                            onPressed: () {
-                              // TODO: Integrar Google Sign-In
+                            onPressed: () async {
+                              // Integración de Google Sign-In
+                              try {
+                                // Mostrar indicador de carga si se desea (aquí bloqueamos UI con modal o similar)
+                                // Por simplicidad, usaremos el mismo botón
+                                
+                                final result = await UserService.loginWithGoogle();
+                                
+                                if (!mounted) return;
+
+                                if (result['success'] == true && result['user'] != null) {
+                                  // Login exitoso
+                                  final user = result['user'];
+                                  final tipoUsuario = user['tipo_usuario'] ?? 'cliente';
+                                  
+                                  print('WelcomeScreen: Redirigiendo usuario tipo: $tipoUsuario');
+                                  
+                                  // Redirigir según el tipo de usuario
+                                  if (tipoUsuario == 'administrador') {
+                                    Navigator.pushNamedAndRemoveUntil(
+                                      context,
+                                      RouteNames.adminHome,
+                                      (route) => false,
+                                      arguments: {'admin_user': user},
+                                    );
+                                  } else if (tipoUsuario == 'conductor') {
+                                    Navigator.pushNamedAndRemoveUntil(
+                                      context,
+                                      RouteNames.conductorHome,
+                                      (route) => false,
+                                      arguments: {'conductor_user': user},
+                                    );
+                                  } else {
+                                    // Cliente
+                                    Navigator.pushNamedAndRemoveUntil(
+                                      context,
+                                      RouteNames.home,
+                                      (route) => false,
+                                      arguments: {'email': user['email'], 'user': user},
+                                    );
+                                  }
+                                } else if (result['success'] == true) {
+                                  // Caso extraño: éxito sin datos
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text('Error: No se recibieron datos de usuario')),
+                                  );
+                                } else {
+                                  // Error
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(result['message'] ?? 'Error al iniciar sesión con Google'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Error inesperado: $e'),
+                                      backgroundColor: Colors.red,
+                                    ),
+                                  );
+                                }
+                              }
                             },
                           ),
                           

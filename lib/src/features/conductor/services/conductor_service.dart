@@ -539,4 +539,71 @@ class ConductorService {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  /// Calificar un cliente (estrellas o bandera roja)
+  static Future<Map<String, dynamic>> rateClient({
+    required int solicitudId,
+    required int conductorId,
+    required int calificacion,
+    String tipoCalificacion = 'estrellas', // 'estrellas' | 'bandera'
+    String motivoBandera = '',
+    String comentario = '',
+  }) async {
+    try {
+      print('⭐ Conductor $conductorId calificando cliente - solicitud: $solicitudId, rating: $calificacion, tipo: $tipoCalificacion');
+      
+      final response = await http.post(
+        Uri.parse('$baseUrl/rate_client.php'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'solicitud_id': solicitudId,
+          'conductor_id': conductorId,
+          'calificacion': calificacion,
+          'tipo_calificacion': tipoCalificacion,
+          'motivo_bandera': motivoBandera,
+          'comentario': comentario,
+        }),
+      ).timeout(const Duration(seconds: 10), onTimeout: () {
+        throw Exception('Tiempo de espera agotado');
+      });
+
+      print('📥 Respuesta rateClient - Status: ${response.statusCode}');
+      print('📄 Body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body);
+      } else {
+        return {
+          'success': false,
+          'message': 'Error del servidor: ${response.statusCode}',
+        };
+      }
+    } catch (e) {
+      print('❌ Error calificando cliente: $e');
+      return {
+        'success': false,
+        'message': 'Error de conexión: $e',
+      };
+    }
+  }
+
+  /// Buscar si el conductor tiene un viaje activo para recuperación de sesión
+  static Future<Map<String, dynamic>?> getActiveTrip(int conductorId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('${AppConfig.baseUrl}/trips/get_active_trip.php?conductor_id=$conductorId'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['hay_viaje'] == true) {
+          return data['trip'];
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error en getActiveTrip conductor: $e');
+      return null;
+    }
+  }
 }

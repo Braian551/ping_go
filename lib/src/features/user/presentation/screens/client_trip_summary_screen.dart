@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../services/trip_request_service.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../global/services/auth/user_service.dart';
+import '../../../../widgets/rating/rating_selector.dart';
 
 class ClientTripSummaryScreen extends StatefulWidget {
   final int solicitudId;
@@ -21,6 +22,8 @@ class _ClientTripSummaryScreenState extends State<ClientTripSummaryScreen> {
   bool _isLoading = true;
   bool _isSubmittingRating = false;
   int _selectedRating = 0;
+  TipoCalificacion _tipoCalificacion = TipoCalificacion.estrellas;
+  String _motivoBandera = '';
   Map<String, dynamic>? _summaryData;
 
   String _formatCurrency(double amount) {
@@ -63,7 +66,6 @@ class _ClientTripSummaryScreenState extends State<ClientTripSummaryScreen> {
     return h > 0 ? '$h h $m min' : '$m min';
   }
 
-  /// Get profile image URL with proper base URL prefix
   String? _getProfileImageUrl(String? relativePath) {
     if (relativePath == null || relativePath.isEmpty) return null;
     final url = AppConfig.resolveImageUrl(relativePath);
@@ -77,31 +79,46 @@ class _ClientTripSummaryScreenState extends State<ClientTripSummaryScreen> {
       return;
     }
 
+    // Si es bandera y no hay motivo, mostrar error
+    if (_tipoCalificacion == TipoCalificacion.bandera && _motivoBandera.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Por favor describe el motivo del reporte'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
     setState(() => _isSubmittingRating = true);
 
     try {
       final session = await UserService.getSavedSession();
-      final userId = session?['id']; // as int?
+      final userId = session?['id'];
       
       if (userId != null) {
-        // userId might come as String or Int from shared prefs via UserService helper map construction
         final userIdInt = userId is int ? userId : int.parse(userId.toString());
         
         final result = await TripRequestService.rateTrip(
           solicitudId: widget.solicitudId,
           usuarioId: userIdInt,
           calificacion: _selectedRating,
+          tipoCalificacion: _tipoCalificacion == TipoCalificacion.estrellas ? 'estrellas' : 'bandera',
+          motivoBandera: _motivoBandera,
         );
         
-        if (result['success'] == true) {
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('¡Gracias por tu calificación!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          }
+        if (result['success'] == true && mounted) {
+          final message = _tipoCalificacion == TipoCalificacion.bandera
+              ? 'Reporte enviado al administrador'
+              : '¡Gracias por tu calificación!';
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(message),
+              backgroundColor: _tipoCalificacion == TipoCalificacion.bandera 
+                  ? Colors.orange 
+                  : Colors.green,
+            ),
+          );
         }
       }
     } catch (e) {
@@ -173,10 +190,6 @@ class _ClientTripSummaryScreenState extends State<ClientTripSummaryScreen> {
   }
 
   Widget _buildContent() {
-    // Parse data from _summaryData handling potential nulls
-    // Structure depends on what getTripSummary returns.
-    // Assuming keys: costo_total, distancia_km, duracion_segundos, conductor...
-    
     final total = double.tryParse(_summaryData!['costo_total']?.toString() ?? '0') ?? 0.0;
     final distancia = double.tryParse(_summaryData!['distancia_real_km']?.toString() ?? '0') ?? 0.0;
     final duracion = int.tryParse(_summaryData!['duracion_real_segundos']?.toString() ?? '0') ?? 0;
@@ -230,13 +243,20 @@ class _ClientTripSummaryScreenState extends State<ClientTripSummaryScreen> {
             title: Text(
               conductor['nombre'] ?? 'Conductor',
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
             ),
             subtitle: Row(
               children: [
                  const Icon(Icons.star, size: 14, color: Colors.amber),
                  Text(' ${double.tryParse(conductor['calificacion']?.toString() ?? '0') == 0 ? '5.0' : conductor['calificacion']}', style: const TextStyle(color: Colors.grey)),
                  const SizedBox(width: 10),
-                 Text(conductor['placa'] ?? '', style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
+                 Expanded(
+                   child: Text(
+                     conductor['placa'] ?? '', 
+                     style: const TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                     overflow: TextOverflow.ellipsis,
+                   ),
+                 ),
               ],
             ),
           ),
@@ -244,33 +264,18 @@ class _ClientTripSummaryScreenState extends State<ClientTripSummaryScreen> {
           const Divider(color: Colors.grey),
           const SizedBox(height: 16),
 
-          // Rating Prompt (Placeholder)
+          // Rating Selector
           Center(
-            child: Column(
-              children: [
-                const Text('¿Cómo estuvo tu viaje?', style: TextStyle(color: Colors.white, fontSize: 18)),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(5, (index) {
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _selectedRating = index + 1;
-                        });
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4.0),
-                        child: Icon(
-                          index < _selectedRating ? Icons.star : Icons.star_border, 
-                          color: const Color(0xFFFFD700), 
-                          size: 40
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ],
+            child: RatingSelector(
+              initialRating: _selectedRating,
+              initialTipo: _tipoCalificacion,
+              onChanged: (rating, tipo, motivo) {
+                setState(() {
+                  _selectedRating = rating;
+                  _tipoCalificacion = tipo;
+                  _motivoBandera = motivo;
+                });
+              },
             ),
           ),
         ],
@@ -290,3 +295,4 @@ class _ClientTripSummaryScreenState extends State<ClientTripSummaryScreen> {
     );
   }
 }
+

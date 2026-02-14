@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:ping_go/src/global/services/admin/admin_service.dart';
 import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:ping_go/src/routes/route_names.dart';
 
 class UsersManagementScreen extends StatefulWidget {
   final int adminId;
@@ -149,25 +150,28 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> with Sing
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
+          Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Gestión de Usuarios',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.3,
+                const FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Gestión de Usuarios',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.3,
+                    ),
                   ),
                 ),
                 Text(
                   'Administrar sistema',
                   style: TextStyle(
                     color: Colors.white60,
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -569,7 +573,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> with Sing
                             '$nombre $apellido',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 0.2,
                             ),
@@ -582,7 +586,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> with Sing
                               Icon(
                                 Icons.email_outlined,
                                 color: Colors.white.withOpacity(0.5),
-                                size: 14,
+                                size: 12,
                               ),
                               const SizedBox(width: 4),
                               Expanded(
@@ -590,7 +594,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> with Sing
                                   user['email'] ?? 'Sin email',
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.6),
-                                    fontSize: 13,
+                                    fontSize: 12,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -599,7 +603,9 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> with Sing
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Row(
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
                             children: [
                               // Tipo de usuario
                               Container(
@@ -633,7 +639,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> with Sing
                                   ],
                                 ),
                               ),
-                              const SizedBox(width: 8),
+                              const SizedBox(width: 0),
                               // Estado
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -770,6 +776,30 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> with Sing
                                 Text(
                                   isActive ? 'Desactivar' : 'Activar',
                                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                          PopupMenuItem(
+                            value: 'view_reports',
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFE53935).withOpacity(0.15),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.flag_rounded,
+                                    color: Color(0xFFE53935),
+                                    size: 18,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                const Text(
+                                  'Ver Reportes',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                                 ),
                               ],
                             ),
@@ -921,6 +951,15 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> with Sing
 
     if (action == 'details') {
       _showUserDetails(user);
+    } else if (action == 'view_reports') {
+      Navigator.pushNamed(
+        context,
+        RouteNames.adminBanderas,
+        arguments: {
+          'targetUserId': userId,
+          'targetUserName': '${user['nombre'] ?? ''} ${user['apellido'] ?? ''}'.trim(),
+        },
+      );
     } else if (action == 'edit') {
       _showEditUserDialog(user);
     } else if (action == 'deactivate' || action == 'activate') {

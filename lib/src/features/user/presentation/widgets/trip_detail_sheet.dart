@@ -29,7 +29,8 @@ class TripDetailSheet extends StatelessWidget {
           topRight: Radius.circular(24),
         ),
       ),
-      child: Column(
+      child: SingleChildScrollView(
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -49,14 +50,18 @@ class TripDetailSheet extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Detalle del viaje',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+              Expanded(
+                child: Text(
+                  'Detalle del viaje',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -141,15 +146,44 @@ class TripDetailSheet extends StatelessWidget {
             const SizedBox(height: 32),
           ],
           
-          // Ruta
-          const Text(
-            'Ruta',
-            style: TextStyle(color: Colors.grey, fontSize: 12, fontWeight: FontWeight.bold),
+          // Ruta con línea dinámica
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Column(
+                  children: [
+                    const Icon(Icons.circle, color: Colors.yellow, size: 14),
+                    Expanded(
+                      child: Container(
+                        width: 1,
+                        color: Colors.grey.withOpacity(0.3),
+                      ),
+                    ),
+                    const Icon(Icons.location_on, color: Colors.red, size: 16),
+                  ],
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        trip['origen'] ?? 'Origen',
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                      const SizedBox(height: 24), // Espacio entre origen y destino
+                      Text(
+                        trip['destino'] ?? 'Destino',
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                      const SizedBox(height: 4), // Pequeño margen final para alinear con el pin
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
-          _buildRouteItem(Icons.circle, Colors.yellow, trip['origen'] ?? 'Origen'),
-          _buildRouteLine(),
-          _buildRouteItem(Icons.location_on, Colors.red, trip['destino'] ?? 'Destino'),
           
           const SizedBox(height: 32),
           
@@ -185,33 +219,8 @@ class TripDetailSheet extends StatelessWidget {
           
           const SizedBox(height: 24),
         ],
-      ),
-    );
-  }
-
-  Widget _buildRouteItem(IconData icon, Color color, String text) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, color: color, size: 16),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Text(
-            text,
-            style: const TextStyle(color: Colors.white, fontSize: 14),
-          ),
         ),
-      ],
-    );
-  }
-
-  Widget _buildRouteLine() {
-    return Container(
-      margin: const EdgeInsets.only(left: 7.5),
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      height: 24,
-      width: 1,
-      color: Colors.grey.withOpacity(0.3),
+      ),
     );
   }
 

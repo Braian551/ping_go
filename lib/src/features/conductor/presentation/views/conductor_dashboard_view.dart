@@ -225,7 +225,10 @@ class _ConductorDashboardViewState extends State<ConductorDashboardView> {
                           children: [
                             const Icon(Icons.star, color: Colors.amber, size: 16),
                             const SizedBox(width: 4),
-                            Text('5.0', style: TextStyle(color: Colors.white.withOpacity(0.7))), // Placeholder rating
+                            Text(
+                              (double.tryParse(assignment['cliente_calificacion']?.toString() ?? '5.0') ?? 5.0).toStringAsFixed(1),
+                              style: TextStyle(color: Colors.white.withOpacity(0.7)),
+                            ),
                           ],
                         ),
                       ],

@@ -8,12 +8,21 @@ class AdminService {
   /// Obtiene estadísticas del dashboard
   static Future<Map<String, dynamic>> getDashboardStats({
     required int adminId,
+    String? period,
   }) async {
     try {
       print('AdminService: Obteniendo estadísticas para admin_id: $adminId');
       
+      final queryParams = {
+        'admin_id': adminId.toString(),
+      };
+      
+      if (period != null) {
+        queryParams['period'] = period;
+      }
+      
       final uri = Uri.parse('$_baseUrl/dashboard_stats.php').replace(
-        queryParameters: {'admin_id': adminId.toString()},
+        queryParameters: queryParams,
       );
       
       print('AdminService: URL completa: $uri');

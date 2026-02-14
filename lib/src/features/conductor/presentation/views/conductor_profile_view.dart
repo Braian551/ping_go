@@ -141,6 +141,31 @@ class ConductorProfileView extends StatelessWidget {
                   fontSize: 14,
                 ),
               ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   const Icon(Icons.star_rounded, color: Color(0xFFFFD700), size: 20),
+                   const SizedBox(width: 4),
+                   Text(
+                     (double.tryParse(conductorUser['calificacion_promedio']?.toString() ?? '0') ?? 5.0).toStringAsFixed(1),
+                     style: const TextStyle(
+                       color: Colors.white,
+                       fontSize: 16,
+                       fontWeight: FontWeight.bold,
+                     ),
+                   ),
+                   if (conductorUser['total_calificaciones'] != null && 
+                       (int.tryParse(conductorUser['total_calificaciones'].toString()) ?? 0) > 0)
+                     Text(
+                       ' (${conductorUser['total_calificaciones']})',
+                       style: TextStyle(
+                         color: Colors.white.withOpacity(0.6),
+                         fontSize: 14,
+                       ),
+                     ),
+                ],
+              ),
             ],
           ),
         ),

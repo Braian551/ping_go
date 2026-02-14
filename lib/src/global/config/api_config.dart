@@ -8,6 +8,9 @@ class ApiConfig {
   // Para un dispositivo físico o WSL, usa la IP de tu máquina (e.g. 192.168.1.10)
   static String get baseUrl {
     final ip = dotenv.env['SERVER_IP'] ?? '10.0.2.2';
+    if (ip == '76.13.127.228') {
+      return 'http://$ip';
+    }
     return 'http://$ip/ping_go/backend-deploy';
   }
 

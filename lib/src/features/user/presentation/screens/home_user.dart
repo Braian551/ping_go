@@ -30,6 +30,8 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
   bool _loading = true;
   int _selectedIndex = 0;
   int _totalViajes = 0;
+  double _rating = 5.0;
+  int _totalRatings = 0;
   late AnimationController _animationController;
   late AnimationController _navAnimationController;
   late Animation<double> _fadeAnimation;
@@ -139,6 +141,13 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
     await Future.delayed(const Duration(milliseconds: 500));
     try {
       final sess = await UserService.getSavedSession();
+      if (sess == null) {
+        if (mounted) {
+          Navigator.of(context).pushReplacementNamed(RouteNames.welcome);
+        }
+        return;
+      }
+      
       if (sess != null) {
         final id = sess['id'] as int?;
         final email = sess['email'] as String?;
@@ -172,6 +181,8 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                   if (mounted) {
                     setState(() {
                       _totalViajes = stats['total_viajes'] ?? 0;
+                      _rating = double.tryParse(stats['calificacion']?.toString() ?? '5.0') ?? 5.0;
+                      _totalRatings = int.tryParse(stats['total_calificaciones']?.toString() ?? '0') ?? 0;
                       _loading = false;
                     });
                   }
@@ -239,6 +250,87 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
     });
   }
 
+  Future<void> _handleLogout() async {
+    final shouldLogout = await showDialog<bool>(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(24),
+          child: BackdropFilter(
+            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1A1A1A).withOpacity(0.95),
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.1),
+                  width: 1.5,
+                ),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.logout_rounded, color: Colors.red, size: 40),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Cerrar Sesión',
+                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '¿Estás seguro de que deseas salir?',
+                    style: TextStyle(color: Colors.white70),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancelar', style: TextStyle(color: Colors.white)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          child: const Text('Salir', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    if (shouldLogout == true) {
+      await UserService.clearSession();
+      if (mounted) {
+        Navigator.pushReplacementNamed(context, '/');
+      }
+    }
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
@@ -265,6 +357,8 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
       if (mounted) {
         setState(() {
           _totalViajes = stats['total_viajes'] ?? 0;
+          _rating = double.tryParse(stats['calificacion']?.toString() ?? '5.0') ?? 5.0;
+          _totalRatings = int.tryParse(stats['total_calificaciones']?.toString() ?? '0') ?? 0;
         });
       }
     } catch (_) {}
@@ -644,9 +738,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
               child: Column(
                 children: [
                   _buildProfileHeader(),
-                  const SizedBox(height: 24),
-                  _buildProfileStats(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 16),
                   _buildProfileMenu(),
                 ],
               ),
@@ -747,6 +839,31 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                   fontWeight: FontWeight.bold,
                 ),
               ),
+              if (_currentUser?['email'] != null)
+                Text(
+                  _currentUser!['email'],
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.6),
+                    fontSize: 14,
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.star_rounded, color: Color(0xFFFFD700), size: 20),
+                  const SizedBox(width: 4),
+                  Text(
+                    _rating.toStringAsFixed(1),
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  if (_totalRatings > 0)
+                    Text(
+                      ' ($_totalRatings)',
+                      style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 14),
+                    ),
+                ],
+              ),
             ],
           ),
         ),
@@ -844,12 +961,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
           icon: Icons.logout,
           title: 'Cerrar sesión',
           isLogout: true,
-          onTap: () async {
-            await UserService.clearSession();
-            if (mounted) {
-              Navigator.pushReplacementNamed(context, '/');
-            }
-          },
+          onTap: () => _handleLogout(),
         ),
       ],
     );
@@ -1368,7 +1480,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
                 children: [
                   _buildNavItem(0, Icons.home_rounded, 'Inicio'),
                   _buildNavItem(1, Icons.receipt_long_rounded, 'Pedidos'),
-                  _buildNavItem(2, Icons.credit_card_rounded, 'Ganancias'),
+                  _buildNavItem(2, Icons.credit_card_rounded, 'Gastos'),
                   _buildNavItem(3, Icons.person_rounded, 'Perfil'),
                 ],
               ),

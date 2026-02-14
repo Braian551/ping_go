@@ -66,6 +66,15 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
                 },
               ),
               _ManagementItem(
+                title: 'Reportes y Banderas',
+                subtitle: 'Ver reportes de clientes y conductores',
+                icon: Icons.flag_rounded,
+                accentColor: const Color(0xFFE53935),
+                onTap: () {
+                  Navigator.pushNamed(context, RouteNames.adminBanderas);
+                },
+              ),
+              _ManagementItem(
                 title: 'Solicitudes Pendientes',
                 subtitle: 'Revisar y aprobar nuevos conductores',
                 icon: Icons.checklist_rtl_rounded,

@@ -32,12 +32,12 @@ class RouteNames {
   static const String adminHome = '/admin/home';
   static const String adminUsers = '/admin/users';
   static const String adminStatistics = '/admin/statistics';
-  static const String adminAuditLogs = '/admin/audit-logs';
   static const String adminConductorDocs = '/admin/conductor-docs';
   static const String adminPendingDrivers = '/admin/pending-drivers';
   static const String adminConductorDocuments = '/admin/conductor_documents';
   static const String adminRates = '/admin/rates';
   static const String adminCommissions = '/admin/commissions';
+  static const String adminBanderas = '/admin/banderas';
   
   // Rutas de conductor
   static const String conductorHome = '/conductor/home';

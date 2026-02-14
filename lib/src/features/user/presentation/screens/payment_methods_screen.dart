@@ -224,7 +224,7 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
           ],
           Expanded(
             child: Text(
-              widget.isTab ? 'Ganancias' : 'Mis Pagos',
+              widget.isTab ? 'Gastos' : 'Mis Pagos',
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 24,
@@ -332,12 +332,16 @@ class _PaymentMethodsScreenState extends State<PaymentMethodsScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],

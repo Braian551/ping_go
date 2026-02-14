@@ -1,0 +1,62 @@
+{
+  "project_info": {
+    "project_number": "675491072410",
+    "project_id": "pinggo-2b423",
+    "storage_bucket": "pinggo-2b423.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:675491072410:android:f2a597c6d43b7dc9711223",
+        "android_client_info": {
+          "package_name": "com.example.ping_go"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "675491072410-9n18og07jqfrcjjf3p39g10oigos8cjk.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.ping_go",
+            "certificate_hash": "59970d55f9c4130f210bab06655b5da220cb1d87"
+          }
+        },
+        {
+          "client_id": "675491072410-p7a1k5k1a4eouuqi8so4ck86q9oe4ac8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.ping_go",
+            "certificate_hash": "1e7f9f2249cb597942d73a9f8a65938ea6e0af66"
+          }
+        },
+        {
+          "client_id": "675491072410-j9ir8urgjfj6s325cg8tvapbtcf4bcsj.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCPBUe2tvSm2jYv070L3kAqjJN9q48fnDk"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "675491072410-j9ir8urgjfj6s325cg8tvapbtcf4bcsj.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "675491072410-j4lofvds4ubj1m3hnkrs1tskd20051uc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.pingGo"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

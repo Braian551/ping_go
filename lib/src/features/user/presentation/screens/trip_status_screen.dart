@@ -9,6 +9,7 @@ import '../../services/trip_request_service.dart';
 import '../../../../global/services/osm_service.dart';
 import '../../../../core/config/app_config.dart';
 import '../../../../widgets/dialogs/custom_dialog.dart';
+import '../../../../routes/route_names.dart';
 import 'select_destination_screen.dart';
 import '../../services/trip_request_service.dart';
 import 'client_trip_summary_screen.dart';
@@ -115,7 +116,30 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
                  ),
                );
              }
-           } else if (newStatus == 'completada') {
+           } else if (newStatus == 'cancelada') {
+              _pollTimer?.cancel();
+              if (mounted) {
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => CustomDialog(
+                    type: DialogType.warning,
+                    title: 'Viaje cancelado',
+                    message: 'El conductor ha cancelado el viaje o la solicitud ha sido anulada.',
+                    primaryButtonText: 'Entendido',
+                    onPrimaryPressed: () {
+                      Navigator.of(context).pop(); // Close dialog
+                      Navigator.pushNamedAndRemoveUntil(
+                        context, 
+                        RouteNames.home, 
+                        (route) => false,
+                      );
+                    },
+                  ),
+                );
+              }
+              return;
+            } else if (newStatus == 'completada') {
              // Navigate to summary
              _pollTimer?.cancel();
              if (mounted) {
@@ -223,26 +247,39 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
       points.add(_currentUserLocation!);
     }
     
-    if (points.length >= 1) { // 1 point is enough to center, 2 for bounds
-      if (points.length == 1) {
-         _mapController.move(points.first, 16);
+    if (points.isNotEmpty) {
+      // Check if all points are identical to avoid zero-area bounds crash
+      bool allIdentical = true;
+      final firstPoint = points.first;
+      for (final p in points) {
+        if (p.latitude != firstPoint.latitude || p.longitude != firstPoint.longitude) {
+          allIdentical = false;
+          break;
+        }
+      }
+
+      if (allIdentical) {
+        _mapController.move(firstPoint, 16);
       } else {
-        double minLat = points.map((p) => p.latitude).reduce(math.min);
-        double maxLat = points.map((p) => p.latitude).reduce(math.max);
-        double minLng = points.map((p) => p.longitude).reduce(math.min);
-        double maxLng = points.map((p) => p.longitude).reduce(math.max);
-        
-        final bounds = LatLngBounds(
-          LatLng(minLat, minLng),
-          LatLng(maxLat, maxLng),
-        );
-        
         try {
+          double minLat = points.map((p) => p.latitude).reduce(math.min);
+          double maxLat = points.map((p) => p.latitude).reduce(math.max);
+          double minLng = points.map((p) => p.longitude).reduce(math.min);
+          double maxLng = points.map((p) => p.longitude).reduce(math.max);
+          
+          final bounds = LatLngBounds(
+            LatLng(minLat, minLng),
+            LatLng(maxLat, maxLng),
+          );
+          
           _mapController.fitCamera(CameraFit.bounds(
             bounds: bounds,
-            padding: const EdgeInsets.all(80), // More padding for panels
+            padding: const EdgeInsets.all(80),
           ));
-        } catch (_) {}
+        } catch (e) {
+          print('TripStatusScreen: Error fitting map bounds: $e');
+          _mapController.move(points.first, 15);
+        }
       }
     }
   }
@@ -936,9 +973,13 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
              ),
            );
            
-           // Navigate back to home or previous screen
-           Navigator.of(context).pop();
-        }
+            // Navigate back to home
+            Navigator.pushNamedAndRemoveUntil(
+              context, 
+              RouteNames.home, 
+              (route) => false,
+            );
+         }
       }
     } catch (e) {
       if (mounted) {

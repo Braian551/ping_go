@@ -151,9 +151,9 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> with AutomaticKee
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-            childAspectRatio: 1.3,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.9,
             children: List.generate(4, (index) => _buildShimmerBox(height: 140)),
           ),
           const SizedBox(height: 30),
@@ -291,9 +291,9 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> with AutomaticKee
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 1.2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.9,
           children: [
             _buildModernStatCard(
               title: 'Usuarios',
@@ -352,13 +352,8 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> with AutomaticKee
                 const Color(0xFFf5576c).withOpacity(0.8),
               ],
               onTap: () {
-                // Navegar a logs de auditoría
-                final adminId = int.tryParse(widget.adminUser['id']?.toString() ?? '0') ?? 0;
-                Navigator.pushNamed(
-                  context,
-                  RouteNames.adminAuditLogs,
-                  arguments: {'admin_id': adminId},
-                );
+                // Navegar a reportes (banderas)
+                Navigator.pushNamed(context, RouteNames.adminBanderas);
               },
             ),
           ],
@@ -397,7 +392,7 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> with AutomaticKee
                 ),
               ],
             ),
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -410,41 +405,48 @@ class _AdminDashboardTabState extends State<AdminDashboardTab> with AutomaticKee
                         title,
                         style: const TextStyle(
                           color: Colors.white,
-                          fontSize: 14,
+                          fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          letterSpacing: 0.3,
+                          letterSpacing: 0.2,
                         ),
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
+                    const SizedBox(width: 4),
                     Container(
-                      padding: const EdgeInsets.all(8),
+                      padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
                         color: gradientColors[0].withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(10),
                       ),
-                      child: Icon(icon, color: gradientColors[0], size: 20),
+                      child: Icon(icon, color: gradientColors[0], size: 18),
                     ),
                   ],
                 ),
-                const Spacer(),
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
+                const SizedBox(height: 8),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   style: TextStyle(
                     color: Colors.white.withOpacity(0.7),
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: FontWeight.w500,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

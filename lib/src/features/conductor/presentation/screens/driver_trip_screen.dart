@@ -8,6 +8,11 @@ import '../../../../global/services/osm_service.dart';
 import '../../services/conductor_service.dart';
 import 'trip_summary_screen.dart';
 import '../../../../core/config/app_config.dart';
+import '../../../user/services/trip_request_service.dart';
+import '../../../../routes/route_names.dart';
+import 'dart:math' as math;
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:intl/intl.dart';
 
 class DriverTripScreen extends StatefulWidget {
   final Map<String, dynamic> tripData;
@@ -28,11 +33,19 @@ class DriverTripScreen extends StatefulWidget {
 }
 
 class _DriverTripScreenState extends State<DriverTripScreen> {
+  // Helper to get solicitud ID regardless of the key name (id or solicitud_id)
+  int get _solicitudId {
+    final id = widget.tripData['solicitud_id'] ?? widget.tripData['id'];
+    if (id == null) return 0;
+    return int.tryParse(id.toString()) ?? 0;
+  }
+
   final MapController _mapController = MapController();
   
   // State
   OsmRoute? _route;
   bool _isLoadingRoute = true;
+  bool _isAdvancing = false;
   String _currentStatus = 'En camino'; // 'En camino', 'Llegué', 'En viaje', 'Finalizado'
   
   // Tracking
@@ -43,18 +56,100 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
   DateTime? _tripStartTime;
   Timer? _durationTimer;
   Duration _tripDuration = Duration.zero;
+  Timer? _statusPollTimer;
 
   @override
   void initState() {
     super.initState();
-    _loadRouteToClient();
+    
+    // Recovery: Map backend status to frontend status
+    final backendStatus = widget.tripData['estado'];
+    if (backendStatus == 'en_sitio') {
+      _currentStatus = 'Llegué';
+    } else if (backendStatus == 'en_transito' || backendStatus == 'recogido') {
+      _currentStatus = 'En viaje';
+      _restoreTripMetrics(); // Restore duration and distance
+    } else {
+      _currentStatus = 'En camino';
+    }
+
+    _loadCurrentRoute();
     _startLocationTracking();
+    _startStatusPolling();
+  }
+
+  Future<void> _restoreTripMetrics() async {
+    // 1. Restore Duration from backend timestamp
+    final recogidoEn = widget.tripData['recogido_en'];
+    if (recogidoEn != null) {
+      try {
+        DateTime startTime;
+        if (recogidoEn is DateTime) {
+          startTime = recogidoEn;
+        } else {
+          // Expected format: "YYYY-MM-DD HH:MM:SS"
+          startTime = DateFormat("yyyy-MM-dd HH:mm:ss").parse(recogidoEn.toString());
+        }
+        
+        // Adjust for local time if necessary (assuming DB is UTC or same as device)
+        // For now, simple parse
+        _tripStartTime = startTime;
+        
+        _durationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+          if (mounted) {
+            setState(() {
+              _tripDuration = DateTime.now().difference(_tripStartTime!);
+            });
+          }
+        });
+      } catch (e) {
+        print('Error parsing recogido_en: $e');
+        _startTripTimer(); // Fallback to now
+      }
+    } else {
+      _startTripTimer(); // Fallback if no timestamp
+    }
+
+    // 2. Restore Distance from local storage
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedKey = 'trip_dist_${_solicitudId}';
+      final savedDist = prefs.getDouble(savedKey);
+      if (savedDist != null) {
+        setState(() {
+          _accumulatedDistanceKm = savedDist;
+        });
+      }
+    } catch (e) {
+      print('Error restoring distance: $e');
+    }
+  }
+
+  Future<void> _saveDistance() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedKey = 'trip_dist_${_solicitudId}';
+      await prefs.setDouble(savedKey, _accumulatedDistanceKm);
+    } catch (e) {
+      print('Error saving distance: $e');
+    }
+  }
+
+  Future<void> _clearPersistedMetrics() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedKey = 'trip_dist_${_solicitudId}';
+      await prefs.remove(savedKey);
+    } catch (e) {
+      print('Error clearing distance: $e');
+    }
   }
 
   @override
   void dispose() {
     _positionStream?.cancel();
     _durationTimer?.cancel();
+    _statusPollTimer?.cancel();
     super.dispose();
   }
 
@@ -85,7 +180,13 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
         _lastPosition!.latitude, _lastPosition!.longitude,
         newPos.latitude, newPos.longitude
       );
-      _accumulatedDistanceKm += (dist / 1000); // Convert to km
+      final newDistKm = dist / 1000;
+      _accumulatedDistanceKm += newDistKm; 
+      
+      // Save periodically (every time distance changes significantly or just every update)
+      if (newDistKm > 0.001) { // > 1 meter change
+        _saveDistance();
+      }
     }
     _lastPosition = newPos;
   }
@@ -95,6 +196,50 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
      // We will update the marker via setState or ValueNotifier if we want smooth animation
      // For now, simple setState to refresh UI
      if (mounted) setState(() {});
+  }
+
+  void _startStatusPolling() {
+    _statusPollTimer = Timer.periodic(const Duration(seconds: 10), (timer) async {
+       final solicitudId = _solicitudId;
+       try {
+         final response = await TripRequestService.getTripStatus(solicitudId: solicitudId);
+         if (response['success'] == true) {
+           final status = response['trip']['estado'];
+           if (status == 'cancelada' && mounted) {
+             _statusPollTimer?.cancel();
+             _positionStream?.cancel();
+             _durationTimer?.cancel();
+             
+             showDialog(
+               context: context,
+               barrierDismissible: false,
+               builder: (ctx) => AlertDialog(
+                 backgroundColor: const Color(0xFF1E1E1E),
+                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                 title: const Text('Viaje cancelado', style: TextStyle(color: Colors.white)),
+                 content: const Text('El cliente ha cancelado la solicitud de viaje.', style: TextStyle(color: Colors.grey)),
+                 actions: [
+                   TextButton(
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.pushNamedAndRemoveUntil(
+                          context, 
+                          RouteNames.conductorHome, 
+                          (route) => false,
+                          arguments: {'conductor_user': widget.tripData['conductor_user'] ?? widget.tripData}
+                        );
+                      },
+                     child: const Text('Entendido', style: TextStyle(color: Color(0xFFFFD700))),
+                   ),
+                 ],
+               ),
+             );
+           }
+         }
+       } catch (e) {
+         print('Error polling trip status: $e');
+       }
+    });
   }
   
   void _startTripTimer() {
@@ -108,38 +253,79 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
     });
   }
 
-  Future<void> _loadRouteToClient() async {
-    // Route from Driver -> Client (Pickup)
-    final driverPos = LatLng(widget.conductorLocation.latitude, widget.conductorLocation.longitude);
-    final clientPos = LatLng(
-      double.parse(widget.tripData['latitud_recogida'].toString()), 
-      double.parse(widget.tripData['longitud_recogida'].toString())
-    );
+  Future<void> _loadCurrentRoute() async {
+    setState(() => _isLoadingRoute = true);
+    
+    // Determine start position (GPS if available, else initial location)
+    final startPos = _lastPosition != null 
+        ? LatLng(_lastPosition!.latitude, _lastPosition!.longitude)
+        : LatLng(widget.conductorLocation.latitude, widget.conductorLocation.longitude);
+    
+    LatLng targetPos;
+    if (_currentStatus == 'En viaje') {
+      // Phase 2: Going to Destination (Dropoff)
+      targetPos = LatLng(
+        double.tryParse(widget.tripData['latitud_destino']?.toString() ?? '') ?? 0.0, 
+        double.tryParse(widget.tripData['longitud_destino']?.toString() ?? '') ?? 0.0
+      );
+    } else {
+      // Phase 1: Going to Pickup (Client)
+      targetPos = LatLng(
+        double.tryParse(widget.tripData['latitud_recogida']?.toString() ?? '') ?? 0.0, 
+        double.tryParse(widget.tripData['longitud_recogida']?.toString() ?? '') ?? 0.0
+      );
+    }
 
     try {
-      final route = await OsmService.getRoute([driverPos, clientPos]);
+      final route = await OsmService.getRoute([startPos, targetPos]);
       setState(() {
         _route = route;
         _isLoadingRoute = false;
       });
       
       WidgetsBinding.instance.addPostFrameCallback((_) {
-         _fitMapBounds(driverPos, clientPos);
+         _fitMapBounds(startPos, targetPos);
       });
     } catch (e) {
-      print('Error loading route: $e');
+      print('Error loading current route: $e');
       setState(() => _isLoadingRoute = false);
     }
   }
 
   void _fitMapBounds(LatLng p1, LatLng p2) {
-    if (!_mapController.mapEventStream.isBroadcast) return; // Simple check
+    // Basic check to see if the controller is ready
+    if (!_mapController.mapEventStream.isBroadcast) return;
     
-    final bounds = LatLngBounds.fromPoints([p1, p2]);
-    _mapController.fitCamera(CameraFit.bounds(
-      bounds: bounds,
-      padding: const EdgeInsets.all(50),
-    ));
+    // Safety check: if points are identical, fitCamera with bounds will crash (zero area)
+    if (p1.latitude == p2.latitude && p1.longitude == p2.longitude) {
+      _mapController.move(p1, 15);
+      return;
+    }
+
+    try {
+      // Validate coordinates are finite
+      if (!p1.latitude.isFinite || !p1.longitude.isFinite || 
+          !p2.latitude.isFinite || !p2.longitude.isFinite) {
+        print('DriverTripScreen: Latitude or longitude is not finite');
+        return;
+      }
+
+      final bounds = LatLngBounds.fromPoints([p1, p2]);
+      
+      // Ensure bounds have a non-zero area to avoid infinite zoom
+      if (bounds.north == bounds.south && bounds.east == bounds.west) {
+        _mapController.move(p1, 15);
+        return;
+      }
+
+      _mapController.fitCamera(CameraFit.bounds(
+        bounds: bounds,
+        padding: const EdgeInsets.all(50),
+      ));
+    } catch (e) {
+      print('DriverTripScreen: Error fitting map bounds: $e');
+      _mapController.move(p1, 15);
+    }
   }
   
   void _openExternalNavigation() async {
@@ -149,15 +335,15 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
   void _openNavigation(String app) async {
     double lat, lng;
     // Determine destination based on trip status
-    if (_currentStatus == 'En camino' || _currentStatus == 'Llegué') {
-       // Phase 1: Going to Pickup (Client)
-       lat = double.parse(widget.tripData['latitud_recogida'].toString());
-       lng = double.parse(widget.tripData['longitud_recogida'].toString());
-    } else {
-       // Phase 2: Going to Destination (Dropoff)
-       lat = double.parse(widget.tripData['latitud_destino'].toString());
-       lng = double.parse(widget.tripData['longitud_destino'].toString());
-    }
+     if (_currentStatus == 'En camino' || _currentStatus == 'Llegué') {
+        // Phase 1: Going to Pickup (Client)
+        lat = double.tryParse(widget.tripData['latitud_recogida']?.toString() ?? '') ?? 0.0;
+        lng = double.tryParse(widget.tripData['longitud_recogida']?.toString() ?? '') ?? 0.0;
+     } else {
+        // Phase 2: Going to Destination (Dropoff)
+        lat = double.tryParse(widget.tripData['latitud_destino']?.toString() ?? '') ?? 0.0;
+        lng = double.tryParse(widget.tripData['longitud_destino']?.toString() ?? '') ?? 0.0;
+     }
 
     Uri url;
     if (app == 'waze') {
@@ -187,7 +373,67 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
     }
   }
 
+  void _showCancelDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Cancelar viaje', style: TextStyle(color: Colors.white)),
+        content: const Text('¿Estás seguro que deseas cancelar este viaje?', style: TextStyle(color: Colors.grey)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('No', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _cancelTrip();
+            },
+            child: const Text('Sí, cancelar', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _cancelTrip() async {
+    final solicitudId = _solicitudId;
+    
+    final success = await ConductorService.updateTripStatus(
+      solicitudId: solicitudId, 
+      estado: 'cancelada',
+      conductorId: widget.conductorId,
+    );
+
+    if (success) {
+      await _clearPersistedMetrics();
+      if (mounted) {
+        Navigator.pushNamedAndRemoveUntil(
+          context, 
+          RouteNames.conductorHome, 
+          (route) => false,
+          arguments: {'conductor_user': widget.tripData['conductor_user'] ?? widget.tripData}
+        );
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Viaje cancelado exitosamente'), backgroundColor: Colors.orange),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error al cancelar el viaje'), backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   Future<void> _advanceState() async {
+    if (_isAdvancing) return;
+    
+    setState(() => _isAdvancing = true);
+    
     String nextState = '';
     String backendState = '';
 
@@ -203,13 +449,20 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
 
     if (backendState.isEmpty) {
         // Case for 'Finalizado' or invalid
-        if (_currentStatus == 'Finalizado') Navigator.pop(context);
+        if (_currentStatus == 'Finalizado') {
+          Navigator.pushNamedAndRemoveUntil(
+            context, 
+            RouteNames.conductorHome, 
+            (route) => false,
+            arguments: {'conductor_user': widget.tripData['conductor_user'] ?? widget.tripData}
+          );
+        }
+        setState(() => _isAdvancing = false);
         return;
     }
 
     // Attempt update
-    // Attempt update
-    final solicitudId = int.parse(widget.tripData['solicitud_id'].toString());
+    final solicitudId = _solicitudId;
     
     double? finalDist;
     int? finalDur;
@@ -229,37 +482,42 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
     
     if (success) {
         if (backendState == 'completada') {
+            await _clearPersistedMetrics();
             _durationTimer?.cancel();
             _positionStream?.cancel();
             
             // Capture final metrics before navigation
-            final finalDist = _accumulatedDistanceKm;
+            final finalDistVal = _accumulatedDistanceKm;
             final finalDurSeconds = _tripDuration.inSeconds;
 
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => TripSummaryScreen(
-                  tripData: widget.tripData, 
-                  realDistanceKm: finalDist, 
-                  realDurationSeconds: finalDurSeconds,
-                  conductorId: widget.conductorId,
+            if (mounted) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => TripSummaryScreen(
+                    tripData: widget.tripData, 
+                    realDistanceKm: finalDistVal, 
+                    realDurationSeconds: finalDurSeconds,
+                    conductorId: widget.conductorId,
+                  ),
                 ),
-              ),
-            ).then((_) {
-               if (mounted) Navigator.pop(context);
-            });
+              ).then((_) {
+                 if (mounted) Navigator.pop(context);
+              });
+            }
         } else {
             setState(() {
                 _currentStatus = nextState;
+                _isAdvancing = false;
                 if (nextState == 'En viaje') {
                     _startTripTimer();
                     _lastPosition = null; // Reset for calculation
-                    _loadRouteToDestination();
+                    _loadCurrentRoute();
                 }
             });
         }
     } else {
+        setState(() => _isAdvancing = false);
         if (mounted) {
              ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Error actualizando estado')),
@@ -268,36 +526,7 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
     }
   }
 
-  Future<void> _loadRouteToDestination() async {
-     setState(() => _isLoadingRoute = true);
-     
-     // Use current driver position (GPS) instead of pickup point
-     LatLng startPos;
-     if (_lastPosition != null) {
-       startPos = LatLng(_lastPosition!.latitude, _lastPosition!.longitude);
-     } else {
-       startPos = LatLng(widget.conductorLocation.latitude, widget.conductorLocation.longitude);
-     }
-     
-     final endPos = LatLng(
-      double.parse(widget.tripData['latitud_destino'].toString()), 
-      double.parse(widget.tripData['longitud_destino'].toString())
-    );
 
-     try {
-      final route = await OsmService.getRoute([startPos, endPos]);
-      setState(() {
-        _route = route;
-        _isLoadingRoute = false;
-      });
-       WidgetsBinding.instance.addPostFrameCallback((_) {
-         _fitMapBounds(startPos, endPos);
-      });
-    } catch (e) {
-      print('Error loading route to destination: $e');
-      setState(() => _isLoadingRoute = false);
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -357,12 +586,12 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
                   Marker(
                     point: (_currentStatus == 'En viaje')
                         ? LatLng(
-                            double.parse(widget.tripData['latitud_destino'].toString()), 
-                            double.parse(widget.tripData['longitud_destino'].toString())
+                            double.tryParse(widget.tripData['latitud_destino']?.toString() ?? '') ?? 0.0, 
+                            double.tryParse(widget.tripData['longitud_destino']?.toString() ?? '') ?? 0.0
                           )
                         : LatLng(
-                            double.parse(widget.tripData['latitud_recogida'].toString()), 
-                            double.parse(widget.tripData['longitud_recogida'].toString())
+                            double.tryParse(widget.tripData['latitud_recogida']?.toString() ?? '') ?? 0.0, 
+                            double.tryParse(widget.tripData['longitud_recogida']?.toString() ?? '') ?? 0.0
                           ),
                     child: Icon(
                       (_currentStatus == 'En viaje') ? Icons.flag : Icons.location_on, 
@@ -382,8 +611,8 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
               child: CircleAvatar(
                 backgroundColor: Colors.black54,
                 child: IconButton(
-                  icon: const Icon(Icons.arrow_back, color: Colors.white),
-                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: _showCancelDialog,
                 ),
               ),
             ),
@@ -414,22 +643,44 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
                         child: (widget.tripData['cliente_foto'] == null) 
                           ? const Icon(Icons.person) : null,
                       ),
-                      const SizedBox(width: 16),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${widget.tripData['cliente_nombre']}',
-                            style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                          ),
-                          Text(
-                             _currentStatus == 'En camino' ? 'Recogiendo cliente' : 'Llevando a destino',
-                            style: TextStyle(color: Colors.grey[400], fontSize: 14),
-                          ),
-                        ],
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    '${widget.tripData['cliente_nombre']}',
+                                    style: const TextStyle(
+                                      color: Colors.white, 
+                                      fontSize: 18, 
+                                      fontWeight: FontWeight.bold,
+                                      letterSpacing: -0.5,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 6),
+                                const Icon(Icons.star_rounded, color: Color(0xFFFFD700), size: 16),
+                                const SizedBox(width: 2),
+                                Text(
+                                  (double.tryParse(widget.tripData['cliente_calificacion']?.toString() ?? '5.0') ?? 5.0).toStringAsFixed(1),
+                                  style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                                ),
+                              ],
+                            ),
+                            Text(
+                               _currentStatus == 'En camino' ? 'Recogiendo cliente' : 'Llevando a destino',
+                              style: TextStyle(color: Colors.grey[400], fontSize: 13),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
                       ),
-                      const Spacer(),
-                      
+                      const SizedBox(width: 8),
                       // Metrics (Dynamic based on status)
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.end,
@@ -504,16 +755,18 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: _advanceState,
+                      onPressed: _isAdvancing ? null : _advanceState,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFFFD700),
                         foregroundColor: Colors.black,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       ),
-                      child: Text(
-                        _getButtonText(),
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
+                      child: _isAdvancing
+                        ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.black))
+                        : Text(
+                            _getButtonText(),
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
                     ),
                   ),
                 ],

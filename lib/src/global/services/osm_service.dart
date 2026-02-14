@@ -1,4 +1,5 @@
 // lib/src/global/services/osm_service.dart
+import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
@@ -24,12 +25,9 @@ class OsmService {
       };
 
       if (lat != null && lon != null) {
-        // Usar viewbox más amplio para Colombia si no hay coordenadas específicas
-        // Coordenadas aproximadas de Colombia: -79.0 a -66.8 longitud, -4.2 a 12.5 latitud
         params['viewbox'] = '${lon - 0.5},${lat + 0.5},${lon + 0.5},${lat - 0.5}';
-        params['bounded'] = '1'; // Limitar resultados al viewbox
+        params['bounded'] = '1';
       } else {
-        // Si no hay coordenadas, usar viewbox de toda Colombia
         params['viewbox'] = '-79.0,12.5,-66.8,-4.2';
         params['bounded'] = '1';
       }
@@ -67,7 +65,7 @@ class OsmService {
           'format': 'json',
           'addressdetails': '1',
           'extratags': '1',
-          'countrycodes': 'co', // Limitar a Colombia
+          'countrycodes': 'co',
         },
       );
 
@@ -92,7 +90,6 @@ class OsmService {
 
   /// Obtener URL de tile para OpenStreetMap
   static String getTileUrl() {
-    // Using CartoDB Dark Matter theme (free, no auth required)
     return 'https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
   }
 
@@ -100,35 +97,45 @@ class OsmService {
   static Future<OsmRoute?> getRoute(List<LatLng> waypoints) async {
     if (waypoints.length < 2) return null;
 
-    try {
-      // Construir coordenadas para OSRM: lon,lat;lon,lat
-      final coordinates = waypoints.map((point) => '${point.longitude},${point.latitude}').join(';');
-      
-      final uri = Uri.parse('http://router.project-osrm.org/route/v1/driving/$coordinates').replace(
-        queryParameters: {
-          'overview': 'full',
-          'geometries': 'geojson',
-          'steps': 'false',
-        },
-      );
+    final coordinates = waypoints.map((point) => '${point.longitude},${point.latitude}').join(';');
+    
+    // Lista de end-points para probar (Fallback strategy)
+    final endpoints = [
+      'https://router.project-osrm.org/route/v1/driving',  // Primary (HTTPS)
+      'http://router.project-osrm.org/route/v1/driving',   // Fallback HTTP
+      'https://routing.openstreetmap.de/routed-car/route/v1/driving', // Alternative server
+    ];
 
-      final response = await http.get(uri, headers: {
-        'User-Agent': EnvConfig.nominatimUserAgent,
-        'Accept': 'application/json',
-      });
+    for (final baseUrl in endpoints) {
+      try {
+        final uri = Uri.parse('$baseUrl/$coordinates').replace(
+          queryParameters: {
+            'overview': 'full',
+            'geometries': 'geojson',
+            'steps': 'false',
+          },
+        );
 
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (data['routes'] != null && data['routes'].isNotEmpty) {
-          return OsmRoute.fromJson(data['routes'][0]);
+        print('Calculating route: $uri');
+
+        final response = await http.get(uri, headers: {
+          'User-Agent': EnvConfig.nominatimUserAgent,
+          'Accept': 'application/json',
+        }).timeout(const Duration(seconds: 5));
+
+        if (response.statusCode == 200) {
+          final data = json.decode(response.body);
+          if (data['routes'] != null && data['routes'].isNotEmpty) {
+            return OsmRoute.fromJson(data['routes'][0]);
+          }
         }
+      } catch (e) {
+        print('Error calculating route with $baseUrl: $e');
+        // Continue to next endpoint
       }
-
-      return null;
-    } catch (e) {
-      print('Error calculando ruta: $e');
-      return null;
     }
+
+    return null;
   }
 }
 
@@ -191,8 +198,8 @@ class OsmRoute {
 
     return OsmRoute(
       geometry: points,
-      distanceKm: (json['distance'] ?? 0) / 1000.0, // metros a km
-      durationMinutes: ((json['duration'] ?? 0) / 60).ceil(), // segundos a minutos
+      distanceKm: (json['distance'] ?? 0) / 1000.0,
+      durationMinutes: ((json['duration'] ?? 0) / 60).ceil(),
     );
   }
 }

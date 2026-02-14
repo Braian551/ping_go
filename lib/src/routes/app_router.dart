@@ -19,10 +19,11 @@ import 'package:ping_go/src/features/admin/presentation/screens/admin_home_scree
 import 'package:ping_go/src/features/admin/presentation/screens/pending_drivers_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/users_management_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/statistics_screen.dart';
-import 'package:ping_go/src/features/admin/presentation/screens/audit_logs_screen.dart';
+
 import 'package:ping_go/src/features/admin/presentation/screens/admin_rates_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/driver_commission_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/conductor_documents_screen.dart';
+import 'package:ping_go/src/features/admin/presentation/screens/banderas_rojas_screen.dart';
 import 'package:ping_go/src/features/conductor/presentation/screens/conductor_home_screen.dart';
 import 'package:ping_go/src/routes/route_names.dart';
 import 'package:ping_go/src/routes/animated_routes.dart';
@@ -192,6 +193,14 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => const DriverCommissionScreen(),
         );
+      case RouteNames.adminBanderas:
+        final args = settings.arguments as Map<String, dynamic>?;
+        return MaterialPageRoute(
+          builder: (_) => BanderasRojasScreen(
+            targetUserId: args?['targetUserId'] as int?,
+            targetUserName: args?['targetUserName'] as String?,
+          ),
+        );
       case RouteNames.adminUsers:
         {
           final args = settings.arguments as Map<String, dynamic>?;
@@ -211,15 +220,7 @@ class AppRouter {
             ),
           );
         }
-      case RouteNames.adminAuditLogs:
-        {
-          final args = settings.arguments as Map<String, dynamic>?;
-          return MaterialPageRoute(
-            builder: (_) => AuditLogsScreen(
-              adminId: args?['admin_id'] ?? 0,
-            ),
-          );
-        }
+
       case RouteNames.adminConductorDocs:
         {
           return MaterialPageRoute(

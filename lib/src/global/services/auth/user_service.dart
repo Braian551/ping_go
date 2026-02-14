@@ -2,6 +2,8 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ping_go/src/core/config/app_config.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 class UserService {
   static Future<Map<String, dynamic>> registerUser({
@@ -306,23 +308,31 @@ class UserService {
   static Future<Map<String, dynamic>?> getSavedSession() async {
     final prefs = await SharedPreferences.getInstance();
     final email = prefs.getString(_kUserEmail);
-    final id = prefs.getInt(_kUserId);
+    final idStr = prefs.get(_kUserId)?.toString(); // Get as anything and convert to avoid type issues
+    final id = int.tryParse(idStr ?? '') ?? 0;
     final tipoUsuario = prefs.getString(_kUserType);
     final nombre = prefs.getString(_kUserName);
     final telefono = prefs.getString(_kUserPhone);
     
-    if (email == null && id == null) return null;
+    // Strict verification: must have email AND a valid ID > 0
+    if (email == null || email.isEmpty || id <= 0) {
+      if (email != null || id > 0) {
+        print('UserService.getSavedSession: Sesión incompleta detectada: email=$email, id=$id. Limpiando.');
+        await clearSession();
+      }
+      return null;
+    }
     
     final session = {
-      if (id != null) 'id': id,
-      if (email != null) 'email': email,
+      'id': id,
+      'email': email,
       if (tipoUsuario != null) 'tipo_usuario': tipoUsuario,
       if (nombre != null) 'nombre': nombre,
       if (telefono != null) 'telefono': telefono,
     };
     
     // Debug: verificar qué estamos recuperando
-    print('UserService.getSavedSession: Sesión recuperada: $session');
+    print('UserService.getSavedSession: Sesión válida recuperada: $session');
     
     return session;
   }
@@ -334,6 +344,15 @@ class UserService {
     await prefs.remove(_kUserType);
     await prefs.remove(_kUserName);
     await prefs.remove(_kUserPhone);
+
+    try {
+      // También cerrar sesión en Firebase y Google para permitir elegir cuenta la próxima vez
+      await FirebaseAuth.instance.signOut();
+      await GoogleSignIn().signOut();
+      print('UserService: Sesión de Firebase y Google cerrada correctamente');
+    } catch (e) {
+      print('UserService: Error al cerrar sesión en Firebase/Google: $e');
+    }
   }
 
   static Future<Map<String, dynamic>> login({
@@ -484,6 +503,101 @@ class UserService {
     } catch (e) {
       print('Error en resetPassword: $e');
       return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Future<Map<String, dynamic>> loginWithGoogle() async {
+    try {
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      
+      // Intentar iniciar sesión con Google
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      
+      if (googleUser == null) {
+        // El usuario canceló el inicio de sesión
+        return {'success': false, 'message': 'Inicio de sesión cancelado'};
+      }
+
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final AuthCredential credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      // Iniciar sesión en Firebase (para obtener el UID consistente si se usa en el futuro)
+      final UserCredential userCredential = await FirebaseAuth.instance.signInWithCredential(credential);
+      final User? firebaseUser = userCredential.user;
+
+      if (firebaseUser == null) {
+        return {'success': false, 'message': 'Error al autenticar con Firebase'};
+      }
+
+      // Preparar datos para el backend
+      final String email = googleUser.email;
+      final String googleId = firebaseUser.uid; // Usar UID de Firebase como identificador estable
+      final String? name = googleUser.displayName;
+      final String? photoUrl = googleUser.photoUrl;
+
+      // Dividir nombre en nombre y apellido (muy básico)
+      String firstName = name ?? '';
+      String lastName = '';
+      if (name != null && name.contains(' ')) {
+        final parts = name.split(' ');
+        firstName = parts.first;
+        lastName = parts.sublist(1).join(' ');
+      }
+
+      print('Google Sign-In exitoso: $email ($googleId)');
+
+      // Enviar al backend para registro/login
+      final response = await http.post(
+        Uri.parse('${AppConfig.authServiceUrl}/google_login.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'email': email,
+          'google_id': googleId,
+          'nombre': firstName,
+          'apellido': lastName,
+          'foto_url': photoUrl,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body) as Map<String, dynamic>;
+        
+        // El backend envuelve la respuesta en 'data'
+        final userData = data['data']?['user'] ?? data['user'];
+        
+        if (data['success'] == true && userData != null) {
+           await saveSession(Map<String, dynamic>.from(userData));
+        }
+        
+        // Devolver con estructura normalizada para el frontend
+        return {
+          'success': data['success'],
+          'message': data['message'],
+          'user': userData,
+          'is_new_user': data['data']?['is_new_user'] ?? data['is_new_user'] ?? false,
+          'require_phone_update': data['data']?['require_phone_update'] ?? data['require_phone_update'] ?? false,
+        };
+      } else {
+        return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+      }
+
+    } catch (e) {
+      print('Error en loginWithGoogle: $e');
+      
+      String message = 'Error inesperado: $e';
+      if (e.toString().contains('sign_in_failed')) {
+        message = 'Error de configuración de Google (Error 10). Verifica el SHA-1 en Firebase.';
+      } else if (e.toString().contains('network_error')) {
+        message = 'Error de red. Verifica tu conexión a internet.';
+      }
+      
+      return {'success': false, 'message': message};
     }
   }
 }

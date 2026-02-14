@@ -59,7 +59,10 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
     
     setState(() => _isLoading = true);
     
-    final response = await AdminService.getDashboardStats(adminId: widget.adminId);
+    final response = await AdminService.getDashboardStats(
+      adminId: widget.adminId,
+      period: _selectedPeriod,
+    );
     
     if (!mounted) return;
     
@@ -98,17 +101,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
           ),
         ),
       ),
-      leading: Container(
-        margin: const EdgeInsets.only(left: 8),
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.white.withOpacity(0.1),
-        ),
-        child: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
+      leading: null,
+      automaticallyImplyLeading: false,
       title: Row(
         children: [
           Container(
@@ -241,9 +235,197 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                   _buildStatsGrid(),
                   const SizedBox(height: 24),
                   _buildDistributionChart(),
+                  const SizedBox(height: 24),
+                  _buildDriverRankings(),
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDriverRankings() {
+    final topConductores = (_stats?['rankings']?['top_conductores'] as List?) ?? [];
+    final worstConductores = (_stats?['rankings']?['worst_conductores'] as List?) ?? [];
+
+    if (topConductores.isEmpty && worstConductores.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Ranking de Conductores',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            letterSpacing: -0.5,
+          ),
+        ),
+        const SizedBox(height: 16),
+        if (topConductores.isNotEmpty)
+          _buildRankingList(
+            'Mejores Conductores', 
+            topConductores, 
+            const Color(0xFFFFD700), // Dorado
+            Icons.emoji_events_rounded,
+          ),
+        if (topConductores.isNotEmpty && worstConductores.isNotEmpty)
+          const SizedBox(height: 20),
+        if (worstConductores.isNotEmpty)
+          _buildRankingList(
+            'Conductores en Riesgo', 
+            worstConductores, 
+            const Color(0xFFf5576c), // Rojo
+            Icons.warning_amber_rounded,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildRankingList(String title, List<dynamic> drivers, Color accentColor, IconData icon) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+        child: Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1A1A1A).withOpacity(0.8),
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: accentColor.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      icon,
+                      color: accentColor,
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: accentColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ...drivers.asMap().entries.map((entry) {
+                final index = entry.key;
+                final driver = entry.value;
+                final nombre = '${driver['nombre']} ${driver['apellido']}'.trim();
+                final rating = double.tryParse(driver['calificacion_promedio']?.toString() ?? '0') ?? 0.0;
+                final count = int.tryParse(driver['total_calificaciones']?.toString() ?? '0') ?? 0;
+                final flagAvg = double.tryParse(driver['promedio_banderas']?.toString() ?? '0') ?? 0.0;
+                final totalFlags = int.tryParse(driver['total_banderas']?.toString() ?? '0') ?? 0;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 24,
+                        height: 24,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white.withOpacity(0.1),
+                        ),
+                        child: Text(
+                          '${index + 1}',
+                          style: const TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              nombre.isEmpty ? 'Conductor sin nombre' : nombre,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              '$count calif. | $totalFlags reportes',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.5),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: accentColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: accentColor.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.star_rounded, color: accentColor, size: 14),
+                                const SizedBox(width: 4),
+                                Text(
+                                  rating.toStringAsFixed(1),
+                                  style: TextStyle(
+                                    color: accentColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (flagAvg > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Text(
+                                '${flagAvg.toStringAsFixed(1)}% reportes',
+                                style: TextStyle(
+                                  color: Colors.redAccent.withOpacity(0.8),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              }),
+            ],
           ),
         ),
       ),
@@ -339,7 +521,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                     ),
                   ),
                   const SizedBox(width: 12),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -353,7 +535,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                           ),
                         ),
                         Text(
-                          'Últimos 7 días',
+                          _selectedPeriod == 'all' ? 'Histórico completo' : (_selectedPeriod == '30d' ? 'Últimos 30 días' : 'Últimos 7 días'),
                           style: TextStyle(
                             color: Colors.white60,
                             fontSize: 13,
@@ -369,17 +551,6 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                 height: 200,
                 child: LineChart(
                   LineChartData(
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      horizontalInterval: 1,
-                      getDrawingHorizontalLine: (value) {
-                        return FlLine(
-                          color: Colors.white.withOpacity(0.05),
-                          strokeWidth: 1,
-                        );
-                      },
-                    ),
                     titlesData: FlTitlesData(
                       show: true,
                       rightTitles: const AxisTitles(
@@ -392,39 +563,70 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                         sideTitles: SideTitles(
                           showTitles: true,
                           reservedSize: 30,
-                          interval: 1,
+                          interval: 1, // Llamamos para cada punto para controlar exactitud
                           getTitlesWidget: (double value, TitleMeta meta) {
-                            if (value.toInt() >= 0 && value.toInt() < registros.length) {
-                              final fecha = registros[value.toInt()]['fecha']?.toString() ?? '';
-                              final parts = fecha.split('-');
-                              if (parts.length >= 2) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: Text(
-                                    '${parts[2]}/${parts[1]}',
-                                    style: const TextStyle(
-                                      color: Colors.white60,
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                );
-                              }
+                            final int index = value.toInt();
+                            if (index < 0 || index >= registros.length) return const SizedBox.shrink();
+
+                            // Lógica de espaciado dinámico
+                            int showEvery = 1;
+                            if (registros.length > 60) {
+                              showEvery = 20; // 90 días (All)
+                            } else if (registros.length > 15) {
+                              showEvery = 7; // 30 días
+                            } else if (registros.length > 7) {
+                              showEvery = 2; // 14 días (si existiera)
                             }
-                            return const Text('');
+
+                            // Siempre mostrar el primer y el último punto
+                            bool isEdge = index == 0 || index == registros.length - 1;
+                            bool isStep = index % showEvery == 0;
+
+                            // Evitar colisión con el punto final
+                            if (isStep && !isEdge && (registros.length - 1 - index) < (showEvery * 0.75)) {
+                              isStep = false;
+                            }
+
+                            if (!isEdge && !isStep) return const SizedBox.shrink();
+
+                            final fecha = registros[index]['fecha']?.toString() ?? '';
+                            final parts = fecha.split('-');
+                            if (parts.length >= 3) {
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 10),
+                                child: Text(
+                                  '${parts[2]}/${parts[1]}',
+                                  style: TextStyle(
+                                    color: Colors.white.withOpacity(0.5),
+                                    fontSize: 9,
+                                    fontWeight: isEdge ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                ),
+                              );
+                            }
+                            return const SizedBox.shrink();
                           },
                         ),
                       ),
                       leftTitles: AxisTitles(
                         sideTitles: SideTitles(
                           showTitles: true,
-                          interval: 5,
-                          reservedSize: 40,
+                          // Ajustar intervalo Y según el máximo
+                          interval: _getMaxValue(registros) > 10 ? (_getMaxValue(registros) / 5).ceilToDouble() : 1,
+                          reservedSize: 35,
                           getTitlesWidget: (double value, TitleMeta meta) {
-                            return Text(
-                              value.toInt().toString(),
-                              style: const TextStyle(
-                                color: Colors.white60,
-                                fontSize: 10,
+                            // No mostrar 0 si está muy pegado al eje o si es decimal
+                            if (value != value.toInt().toDouble()) return const SizedBox.shrink();
+                            
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: Text(
+                                value.toInt().toString(),
+                                style: TextStyle(
+                                  color: Colors.white.withOpacity(0.4),
+                                  fontSize: 10,
+                                ),
+                                textAlign: TextAlign.right,
                               ),
                             );
                           },
@@ -432,26 +634,36 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                       ),
                     ),
                     borderData: FlBorderData(show: false),
+                    gridData: FlGridData(
+                      show: true,
+                      drawVerticalLine: false,
+                      horizontalInterval: _getMaxValue(registros) > 10 ? (_getMaxValue(registros) / 5).ceilToDouble() : 1,
+                      getDrawingHorizontalLine: (value) => FlLine(
+                        color: Colors.white.withOpacity(0.03),
+                        strokeWidth: 1,
+                      ),
+                    ),
                     minX: 0,
                     maxX: (registros.length - 1).toDouble(),
                     minY: 0,
-                    maxY: _getMaxValue(registros) * 1.2,
+                    maxY: (_getMaxValue(registros) + 0.5), // Pequeño margen arriba
                     lineBarsData: [
                       LineChartBarData(
                         spots: _getChartSpots(registros),
                         isCurved: true,
+                        curveSmoothness: 0.35,
                         gradient: const LinearGradient(
                           colors: [Color(0xFFFFFF00), Color(0xFFFFD700)],
                         ),
-                        barWidth: 3,
+                        barWidth: 2,
                         isStrokeCapRound: true,
                         dotData: FlDotData(
-                          show: true,
+                          show: registros.length <= 10, // Solo mostrar puntos en vista de 7 días
                           getDotPainter: (spot, percent, barData, index) {
                             return FlDotCirclePainter(
-                              radius: 4,
+                              radius: 2.5,
                               color: const Color(0xFFFFFF00),
-                              strokeWidth: 2,
+                              strokeWidth: 1,
                               strokeColor: Colors.black,
                             );
                           },
@@ -483,7 +695,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
     return List.generate(
       registros.length,
       (index) {
-        final cantidad = int.tryParse(registros[index]['cantidad']?.toString() ?? '0') ?? 0;
+        final cantidad = int.tryParse(registros[index]['total']?.toString() ?? '0') ?? 0;
         return FlSpot(index.toDouble(), cantidad.toDouble());
       },
     );
@@ -492,7 +704,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
   double _getMaxValue(List<dynamic> registros) {
     double max = 0;
     for (var registro in registros) {
-      final cantidad = int.tryParse(registro['cantidad']?.toString() ?? '0') ?? 0;
+      final cantidad = int.tryParse(registro['total']?.toString() ?? '0') ?? 0;
       if (cantidad > max) max = cantidad.toDouble();
     }
     return max == 0 ? 10 : max;
@@ -569,9 +781,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          childAspectRatio: 1.5,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 0.9,
           children: [
             _buildStatCard(
               'Total Usuarios',
@@ -605,14 +817,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
 
   Widget _buildStatCard(String label, String value, IconData icon, Color color) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(18),
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: const Color(0xFF1A1A1A).withOpacity(0.8),
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(18),
             border: Border.all(color: Colors.white.withOpacity(0.1)),
           ),
           child: Column(
@@ -620,46 +832,37 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: color.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   icon,
                   color: color,
-                  size: 20,
+                  size: 16,
                 ),
               ),
-              Flexible(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      child: Text(
-                        value,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: -0.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      label,
-                      style: const TextStyle(
-                        color: Colors.white60,
-                        fontSize: 11,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: -0.5,
+                  ),
                 ),
+              ),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Colors.white60,
+                  fontSize: 11,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

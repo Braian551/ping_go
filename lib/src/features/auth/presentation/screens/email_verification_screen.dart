@@ -462,37 +462,7 @@ class _EmailVerificationScreenState extends State<EmailVerificationScreen> {
                         ),
             
                         const SizedBox(height: 40),
-            
-                        if (_verificationCode.isNotEmpty)
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.05),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: Colors.white.withOpacity(0.1)),
-                            ),
-                            child: Column(
-                              children: [
-                                Text(
-                                  'Código para desarrollo:',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.5),
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _verificationCode,
-                                  style: const TextStyle(
-                                    color: Color(0xFFFFFF00),
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 2,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+
                           
                         const SizedBox(height: 20),
                       ],

@@ -4,13 +4,24 @@ import 'package:ping_go/src/routes/app_router.dart';
 import 'package:ping_go/src/providers/database_provider.dart';
 import 'package:ping_go/src/features/conductor/providers/conductor_profile_provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart ';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
   await initializeDateFormatting('es_ES', null);
+
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print('Firebase inicializado correctamente con opciones');
+  } catch (e) {
+    print('Error inicializando Firebase: $e');
+  }
 
   // Inicializar Service Locator (Inyección de Dependencias)
   // Esto configura todos los datasources, repositories y use cases

@@ -307,15 +307,17 @@ class TripRequestService {
     }
   }
 
-  /// Calificar un viaje completado
+  /// Calificar un viaje completado (estrellas o bandera roja)
   static Future<Map<String, dynamic>> rateTrip({
     required int solicitudId,
     required int usuarioId,
     required int calificacion,
+    String tipoCalificacion = 'estrellas', // 'estrellas' | 'bandera'
+    String motivoBandera = '',
     String comentario = '',
   }) async {
     try {
-      print('⭐ Enviando calificación: $calificacion para solicitud $solicitudId');
+      print('⭐ Enviando calificación: $calificacion (tipo: $tipoCalificacion) para solicitud $solicitudId');
       
       final response = await http.post(
         Uri.parse('$baseUrl/user/rate_trip.php'),
@@ -324,6 +326,8 @@ class TripRequestService {
           'solicitud_id': solicitudId,
           'usuario_id': usuarioId,
           'calificacion': calificacion,
+          'tipo_calificacion': tipoCalificacion,
+          'motivo_bandera': motivoBandera,
           'comentario': comentario,
         }),
       ).timeout(const Duration(seconds: 10), onTimeout: () {
@@ -387,6 +391,26 @@ class TripRequestService {
     } catch (e) {
       print('Error getting user stats: $e');
       return {};
+    }
+  }
+
+  /// Buscar si el usuario tiene un viaje activo para recuperación de sesión
+  static Future<Map<String, dynamic>?> getActiveTrip(int userId) async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/trips/get_active_trip.php?usuario_id=$userId'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true && data['hay_viaje'] == true) {
+          return data['trip'];
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error en getActiveTrip: $e');
+      return null;
     }
   }
 }
