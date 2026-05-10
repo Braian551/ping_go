@@ -46,6 +46,8 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
   // State tracking for notifications
   String? _lastStatus;
   bool _driverArrivedNotified = false;
+  // Proteccion contra multiples toques de cancelar
+  bool _isCancelling = false;
 
   @override
   void initState() {
@@ -297,21 +299,32 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
     return 'assets/images/car_top_view.png';
   }
   
-  // Determina si se puede salir directamente o se debe confirmar cancelación
   bool get _shouldInterceptBack {
-    if (_trip == null) return false;
-    return _canCancel(_trip!['estado']);
+    // Siempre interceptamos el boton 'atras' para evitar pantallas negras.
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
     return  PopScope(
-      canPop: !_shouldInterceptBack,
+      canPop: false, // Nunca permitimos un pop directo a la pantalla negra
       onPopInvokedWithResult: (bool didPop, dynamic result) async {
         if (didPop) return;
         
-        // Show cancel dialog when trying to go back if trip is active
-        _showCancelDialog(isBackNavigation: true);
+        if (_trip != null && _canCancel(_trip!['estado'])) {
+          _showCancelDialog(isBackNavigation: true);
+        } else if (_trip != null) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No puedes salir de esta vista durante un viaje en curso.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        } else {
+           // Si por alguna razon _trip es nulo, ir a home en vez de pop
+           Navigator.pushNamedAndRemoveUntil(context, RouteNames.home, (route) => false);
+        }
       },
       child: Scaffold(
         backgroundColor: const Color(0xFF0D0D0D),
@@ -326,10 +339,18 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
           leading: IconButton(
             icon: const Icon(Icons.close, color: Colors.white, size: 28),
             onPressed: () {
-              if (_shouldInterceptBack) {
+              if (_trip != null && _canCancel(_trip!['estado'])) {
                 _showCancelDialog(isBackNavigation: true);
+              } else if (_trip != null) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('No puedes salir de esta vista durante un viaje en curso.'),
+                    backgroundColor: Colors.orange,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
               } else {
-                Navigator.of(context).pop();
+                Navigator.pushNamedAndRemoveUntil(context, RouteNames.home, (route) => false);
               }
             },
           ),
@@ -954,18 +975,24 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
   }
 
   bool _canCancel(String? status) {
+    // Sincronizado con el backend: estados cancelables
     return status == 'conductor_asignado' || 
            status == 'en_sitio' || 
            status == 'pendiente' || 
-           status == 'aceptada';
+           status == 'aceptada' ||
+           status == 'en_transito' ||
+           status == 'recogido';
   }
 
   Future<void> _cancelTrip() async {
+    // Evitar multiples llamadas simultaneas
+    if (_isCancelling) return;
+    setState(() => _isCancelling = true);
+
     try {
       final canceled = await TripRequestService.cancelTripRequest(_trip!['id']);
       if (canceled) {
         if (mounted) {
-           // Show success dialog or snackbar
            ScaffoldMessenger.of(context).showSnackBar(
              const SnackBar(
                content: Text('Solicitud cancelada'),
@@ -973,7 +1000,6 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
              ),
            );
            
-            // Navigate back to home
             Navigator.pushNamedAndRemoveUntil(
               context, 
               RouteNames.home, 
@@ -983,15 +1009,25 @@ class _TripStatusScreenState extends State<TripStatusScreen> {
       }
     } catch (e) {
       if (mounted) {
+        // Limpiar el prefijo "Exception: " para mostrar un mensaje limpio
+        final rawMsg = e.toString();
+        final cleanMsg = rawMsg.startsWith('Exception: ')
+            ? rawMsg.substring('Exception: '.length)
+            : rawMsg;
+
         showDialog(
           context: context,
           builder: (context) => CustomDialog(
             type: DialogType.error,
-            title: 'Error',
-            message: 'No se pudo cancelar el viaje: $e',
+            title: 'No se pudo cancelar',
+            message: cleanMsg,
             primaryButtonText: 'Entendido',
           ),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isCancelling = false);
       }
     }
   }

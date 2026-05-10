@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:ping_go/src/routes/app_router.dart';
 import 'package:ping_go/src/providers/database_provider.dart';
 import 'package:ping_go/src/features/conductor/providers/conductor_profile_provider.dart';
+import 'package:ping_go/src/features/conductor/providers/conductor_status_provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
@@ -38,6 +39,7 @@ void main() async {
         
         // Proveedores de Conductor (legacy - funcionalidad migrada a Microservicio de Conductor)
         ChangeNotifierProvider(create: (_) => ConductorProfileProvider()),
+        ChangeNotifierProvider(create: (_) => ConductorStatusProvider()),
       ],
       child: const MyApp(),
     ),

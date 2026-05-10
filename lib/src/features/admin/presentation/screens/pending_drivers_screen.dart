@@ -621,78 +621,433 @@ class _PendingDriversScreenState extends State<PendingDriversScreen> {
     );
   }
 
+  /// Construye la vista previa de imagen del documento del conductor.
+  /// Estilo profesional tipo plataforma de transporte (Uber/Didi/InDrive).
+  /// Incluye icono del tipo de documento, indicador de carga skeleton,
+  /// estado de error con reintento, y visor a pantalla completa con zoom.
   Widget _buildImagePreview(String label, String relativePath) {
-    // Construir URL correcta eliminando '/backend-deploy' si existe en la baseUrl para apuntar a la raíz
-    // Esto asume que la estructura es ping_go/backend-deploy y ping_go/uploads
-    final baseUrl = 'http://10.0.2.2/ping_go'; // Fallback
-    // Idealmente deberíamos importar ApiConfig y procesarlo, pero por simplicidad y robustez aquí:
-    
-    // Una forma más segura usando ApiConfig real si está disponible
-    // String rootUrl = ApiConfig.baseUrl.replaceAll('/backend-deploy', '');
-    
-    // Hardcoded for now based on known structure or getting from ApiConfig via import if possible.
-    // Assuming context knows ApiConfig or we import it.
-    // For this snippet, I'll assume we need to import ApiConfig which is already imported in many files.
-    // But since I can't easily see imports here, I'll rely on the user having ApiConfig. import is at top.
-    
-    // The relative path in DB is uploads/conductores/...
-    // We need to fetch from http://IP/ping_go/uploads/...
-    // ApiConfig.baseUrl is http://IP/ping_go/backend-deploy
-    
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(color: Colors.white70, fontSize: 13),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          height: 200,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.white.withOpacity(0.1)),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.network(
-              _buildImageUrl(relativePath),
-              fit: BoxFit.cover,
-              loadingBuilder: (context, child, loadingProgress) {
-                if (loadingProgress == null) return child;
-                return Center(
-                  child: CircularProgressIndicator(
-                    value: loadingProgress.expectedTotalBytes != null
-                        ? loadingProgress.cumulativeBytesLoaded / 
-                          loadingProgress.expectedTotalBytes!
-                        : null,
-                    color: const Color(0xFFFFFF00),
+    final imageUrl = _buildImageUrl(relativePath);
+    // Determinar el icono segun el tipo de documento
+    final IconData documentIcon = _getDocumentIcon(label);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A).withOpacity(0.8),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.08), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // -- Encabezado del documento con icono y etiqueta --
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFFFFF00).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                );
-              },
-              errorBuilder: (context, error, stackTrace) {
-                return const Center(
+                  child: Icon(
+                    documentIcon,
+                    color: const Color(0xFFFFFF00),
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
                   child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.broken_image, color: Colors.white54, size: 40),
-                      SizedBox(height: 8),
-                      Text('Error cargando imagen', style: TextStyle(color: Colors.white54)),
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Toca para ampliar',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.4),
+                          fontSize: 11,
+                        ),
+                      ),
                     ],
                   ),
-                );
-              },
+                ),
+                // -- Indicador de estado del documento --
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: Colors.orange.withOpacity(0.3),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: Colors.orange,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      const Text(
+                        'En revision',
+                        style: TextStyle(
+                          color: Colors.orange,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-      ],
+          const SizedBox(height: 12),
+          // -- Imagen del documento con visor profesional --
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+            child: GestureDetector(
+              onTap: () => _showFullScreenImage(context, imageUrl, label),
+              child: Hero(
+                tag: 'doc_image_$relativePath',
+                child: Container(
+                  height: 200,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0D0D0D),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Colors.white.withOpacity(0.06),
+                      width: 1,
+                    ),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        // Imagen con indicador de carga skeleton
+                        Image.network(
+                          imageUrl,
+                          fit: BoxFit.cover,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            // Indicador de carga tipo skeleton con progreso
+                            final progress = loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null;
+                            return Shimmer.fromColors(
+                              baseColor: const Color(0xFF1A1A1A),
+                              highlightColor: const Color(0xFF2A2A2A),
+                              child: Container(
+                                color: const Color(0xFF1A1A1A),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      SizedBox(
+                                        width: 36,
+                                        height: 36,
+                                        child: CircularProgressIndicator(
+                                          value: progress,
+                                          strokeWidth: 2.5,
+                                          color: const Color(0xFFFFFF00).withOpacity(0.6),
+                                          backgroundColor: Colors.white.withOpacity(0.08),
+                                        ),
+                                      ),
+                                      if (progress != null) ...[
+                                        const SizedBox(height: 10),
+                                        Text(
+                                          '${(progress * 100).toInt()}%',
+                                          style: TextStyle(
+                                            color: Colors.white.withOpacity(0.4),
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: const Color(0xFF1A1A1A),
+                              child: Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(14),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.1),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: const Icon(
+                                        Icons.image_not_supported_outlined,
+                                        color: Colors.red,
+                                        size: 28,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'No se pudo cargar',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.5),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Verifica la conexion',
+                                      style: TextStyle(
+                                        color: Colors.white.withOpacity(0.3),
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        // -- Overlay con icono de expandir --
+                        Positioned(
+                          right: 10,
+                          bottom: 10,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.white.withOpacity(0.1),
+                              ),
+                            ),
+                            child: const Icon(
+                              Icons.fullscreen_rounded,
+                              color: Colors.white70,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
+  /// Determina el icono del documento segun su etiqueta.
+  IconData _getDocumentIcon(String label) {
+    final lowerLabel = label.toLowerCase();
+    if (lowerLabel.contains('frente')) return Icons.credit_card_rounded;
+    if (lowerLabel.contains('reverso')) return Icons.flip_rounded;
+    if (lowerLabel.contains('soat')) return Icons.verified_user_outlined;
+    if (lowerLabel.contains('tecno')) return Icons.build_circle_outlined;
+    if (lowerLabel.contains('propiedad')) return Icons.description_outlined;
+    return Icons.insert_drive_file_outlined;
+  }
+
+  /// Muestra la imagen del documento a pantalla completa con zoom interactivo.
+  /// Incluye animacion Hero para transicion fluida.
+  void _showFullScreenImage(BuildContext context, String imageUrl, String label) {
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black87,
+        barrierDismissible: true,
+        transitionDuration: const Duration(milliseconds: 300),
+        reverseTransitionDuration: const Duration(milliseconds: 250),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return FadeTransition(
+            opacity: animation,
+            child: _FullScreenImageViewer(
+              imageUrl: imageUrl,
+              label: label,
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// Construye la URL completa de la imagen a partir de la ruta relativa.
   String _buildImageUrl(String relativePath) {
     return AppConfig.resolveImageUrl(relativePath);
+  }
+}
+
+/// Visor de imagen a pantalla completa con zoom interactivo.
+/// Estilo profesional tipo plataforma de transporte.
+class _FullScreenImageViewer extends StatelessWidget {
+  final String imageUrl;
+  final String label;
+
+  const _FullScreenImageViewer({
+    required this.imageUrl,
+    required this.label,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      body: Stack(
+        children: [
+          // -- Fondo con gesto para cerrar --
+          GestureDetector(
+            onTap: () => Navigator.pop(context),
+            child: Container(color: Colors.transparent),
+          ),
+          // -- Imagen con zoom interactivo --
+          Center(
+            child: InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return SizedBox(
+                        width: 200,
+                        height: 200,
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                            color: const Color(0xFFFFFF00),
+                            strokeWidth: 2.5,
+                          ),
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        width: 200,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1A1A1A),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.image_not_supported_outlined,
+                            color: Colors.white38,
+                            size: 48,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+          // -- Barra superior con titulo y boton cerrar --
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: Container(
+              padding: EdgeInsets.only(
+                top: MediaQuery.of(context).padding.top + 8,
+                left: 16,
+                right: 16,
+                bottom: 12,
+              ),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withOpacity(0.8),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+              child: Row(
+                children: [
+                  // Boton cerrar
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.1),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  // Titulo del documento
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          'Pellizca para hacer zoom',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.5),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

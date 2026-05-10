@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:ping_go/src/global/services/auth/user_service.dart';
+import '../../../../widgets/shimmer/custom_shimmer.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -234,7 +235,7 @@ class _ProfileTabState extends State<ProfileTab> {
     final email = _session?['email'] as String?;
 
     return _loading
-        ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFFF00))))
+        ? CustomShimmer.profile()
         : SafeArea(
             child: SingleChildScrollView(
               physics: const BouncingScrollPhysics(),
@@ -337,7 +338,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Perfil', style: TextStyle(color: Colors.white)),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFFFF00))))
+          ? CustomShimmer.profile()
           : Padding(
               padding: const EdgeInsets.all(16.0),
               child: Column(

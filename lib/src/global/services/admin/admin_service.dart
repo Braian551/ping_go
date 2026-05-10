@@ -599,4 +599,58 @@ class AdminService {
       return {'success': false, 'message': e.toString()};
     }
   }
+
+  /// Obtener pagos de comisión enviados por conductores
+  static Future<Map<String, dynamic>> getCommissionPayments({String? estado}) async {
+    try {
+      final queryParams = <String, String>{};
+      if (estado != null) queryParams['estado'] = estado;
+
+      final uri = Uri.parse('$_baseUrl/get_commission_payments.php')
+          .replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+      final response = await http.get(
+        uri,
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error en getCommissionPayments: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Aprobar o rechazar un pago de comisión
+  static Future<Map<String, dynamic>> approveCommissionPayment({
+    required int pagoId,
+    required String accion, // 'aprobado' or 'rechazado'
+    String? nota,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$_baseUrl/approve_commission_payment.php'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode({
+          'pago_id': pagoId,
+          'accion': accion,
+          if (nota != null) 'nota_admin': nota,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {'success': false, 'message': 'Error ${response.statusCode}'};
+    } catch (e) {
+      print('Error en approveCommissionPayment: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
 }

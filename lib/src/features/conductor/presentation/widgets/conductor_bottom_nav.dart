@@ -35,8 +35,9 @@ class ConductorBottomNav extends StatelessWidget {
                 children: [
                   _buildNavItem(0, Icons.dashboard_rounded, 'Panel'),
                   _buildNavItem(1, Icons.map_rounded, 'Mapa'),
-                  _buildNavItem(2, Icons.history_rounded, 'Historial'),
-                  _buildNavItem(3, Icons.person_rounded, 'Perfil'),
+                  _buildNavItem(2, Icons.bar_chart_rounded, 'Estadísticas'),
+                  _buildNavItem(3, Icons.history_rounded, 'Historial'),
+                  _buildNavItem(4, Icons.person_rounded, 'Perfil'),
                 ],
               ),
             ),

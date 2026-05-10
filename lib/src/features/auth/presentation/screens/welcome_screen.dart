@@ -143,11 +143,18 @@ class _WelcomeScreenState extends State<WelcomeScreen> {
                           // Google Button (Primary/White)
                           _buildModernButton(
                             icon: Image.network(
-                              'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1200px-Google_%22G%22_logo.svg.png',
+                              'https://www.gstatic.com/images/branding/product/2x/googleg_48dp.png',
                               height: 24,
                               width: 24,
-                              errorBuilder: (context, error, stackTrace) => 
-                                const Icon(Icons.g_mobiledata, size: 28, color: Colors.black),
+                              fit: BoxFit.contain,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return const SizedBox(
+                                  width: 24,
+                                  height: 24,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                );
+                              },
                             ),
                             text: 'Continuar con Google',
                             backgroundColor: Colors.white,

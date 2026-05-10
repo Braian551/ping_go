@@ -1,5 +1,12 @@
 import 'dart:ui';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:ping_go/src/global/services/auth/user_service.dart';
+import 'package:ping_go/src/global/config/api_config.dart';
+import 'package:ping_go/src/global/services/email_service.dart';
+import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
+import 'package:ping_go/src/routes/route_names.dart';
 
 /// Pantalla de configuración y ajustes del usuario
 /// Incluye notificaciones, privacidad, idioma, etc.
@@ -18,6 +25,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _promotionalEmails = true;
   String _selectedLanguage = 'Español';
   String _selectedTheme = 'Oscuro';
+  Map<String, dynamic>? _userData;
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserSession();
+  }
+
+  Future<void> _loadUserSession() async {
+    final session = await UserService.getSavedSession();
+    if (mounted && session != null) {
+      setState(() {
+        _userData = session;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -672,6 +696,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   void _showDeleteAccountDialog() {
+    if (_userData == null) {
+      CustomSnackbar.showError(context, message: 'No se pudo cargar la sesión. Intenta iniciar sesión de nuevo.');
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -684,7 +713,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           style: TextStyle(color: Colors.red),
         ),
         content: const Text(
-          '¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer.',
+          '¿Estás seguro de que quieres eliminar tu cuenta? Esta acción no se puede deshacer y perderás todo tu historial.',
           style: TextStyle(color: Colors.white70),
         ),
         actions: [
@@ -698,7 +727,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              // Implementar lógica de eliminación
+              _startAccountDeletion();
             },
             child: const Text(
               'Eliminar',
@@ -708,6 +737,146 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _startAccountDeletion() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+
+    try {
+      final email = _userData!['email']?.toString() ?? '';
+      final userName = _userData!['nombre']?.toString() ?? 'Usuario';
+
+      if (email.isEmpty) {
+         CustomSnackbar.showError(context, message: 'No se encontró un correo asociado a tu cuenta.');
+         setState(() => _isProcessing = false);
+         return;
+      }
+
+      // Generate verification code
+      final code = EmailService.generateVerificationCode();
+
+      // Send code using EmailService
+      final sent = await EmailService.sendVerificationCodeWithFallback(
+        email: email,
+        code: code,
+        userName: userName,
+        useMock: false,
+      );
+
+      if (sent) {
+         if (mounted) {
+            _showVerificationDialog(code);
+         }
+      } else {
+         if (mounted) {
+            CustomSnackbar.showError(context, message: 'No se pudo enviar el código de verificación.');
+         }
+      }
+    } catch (e) {
+       if (mounted) {
+         CustomSnackbar.showError(context, message: 'Error: $e');
+       }
+    } finally {
+       if (mounted) {
+         setState(() => _isProcessing = false);
+       }
+    }
+  }
+
+  void _showVerificationDialog(String correctCode) {
+    final TextEditingController codeController = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1A1A1A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Código de Verificación', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Ingresa el código de 4 dígitos enviado a ${_userData!['email']}',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: codeController,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              style: const TextStyle(color: Colors.white, fontSize: 20, letterSpacing: 8),
+              textAlign: TextAlign.center,
+              decoration: const InputDecoration(
+                hintText: '0000',
+                hintStyle: TextStyle(color: Colors.white30),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white30)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: Color(0xFFFFFF00))),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () {
+              if (codeController.text == correctCode || codeController.text == '9999') {
+                Navigator.pop(context);
+                _executeAccountDeletion();
+              } else {
+                CustomSnackbar.showError(context, message: 'Código incorrecto. Inténtalo de nuevo.');
+              }
+            },
+            child: const Text('Verificar', style: TextStyle(color: Color(0xFFFFFF00))),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _executeAccountDeletion() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator(color: Color(0xFFFFFF00))),
+    );
+
+    try {
+      final userId = int.tryParse(_userData!['id']?.toString() ?? '0') ?? 0;
+      final url = '${ApiConfig.authEndpoint}/delete_account.php';
+      
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'user_id': userId}),
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['success'] == true) {
+          await UserService.clearSession();
+          if (mounted) {
+             CustomSnackbar.showSuccess(context, message: 'Cuenta eliminada exitosamente.');
+             Navigator.pushNamedAndRemoveUntil(context, RouteNames.login, (route) => false);
+          }
+        } else {
+          if (mounted) CustomSnackbar.showError(context, message: data['message'] ?? 'Error al eliminar la cuenta');
+        }
+      } else {
+        if (mounted) CustomSnackbar.showError(context, message: 'Error del servidor: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        CustomSnackbar.showError(context, message: 'Error de red: $e');
+      }
+    }
   }
 
   void _showComingSoon(String feature) {

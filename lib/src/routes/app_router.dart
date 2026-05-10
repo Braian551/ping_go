@@ -20,6 +20,8 @@ import 'package:ping_go/src/features/admin/presentation/screens/pending_drivers_
 import 'package:ping_go/src/features/admin/presentation/screens/users_management_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/statistics_screen.dart';
 
+import 'package:ping_go/src/features/user/presentation/screens/settings_screen.dart';
+
 import 'package:ping_go/src/features/admin/presentation/screens/admin_rates_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/driver_commission_screen.dart';
 import 'package:ping_go/src/features/admin/presentation/screens/conductor_documents_screen.dart';
@@ -106,25 +108,7 @@ class AppRouter {
       case RouteNames.tripHistory:
         return MaterialPageRoute(builder: (_) => const TripHistoryScreen());
       case RouteNames.settings:
-        return MaterialPageRoute(
-          builder: (context) => Scaffold(
-            backgroundColor: Colors.black,
-            appBar: AppBar(
-              backgroundColor: Colors.black,
-              title: const Text('Configuración', style: TextStyle(color: Colors.white)),
-              leading: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.of(context).pop(),
-              ),
-            ),
-            body: const Center(
-              child: Text(
-                'Configuración próximamente disponible',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
-          ),
-        );
+        return MaterialPageRoute(builder: (_) => const SettingsScreen());
       case RouteNames.selectDestination:
         return MaterialPageRoute(builder: (_) => const SelectDestinationScreen());
       case RouteNames.favoritePlaces:

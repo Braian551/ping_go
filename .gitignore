@@ -11,6 +11,8 @@
 .svn/
 .swiftpm/
 .vendor/
+*.sql
+
 migrate_working_dir/
 
 # IntelliJ related

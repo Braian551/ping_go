@@ -8,16 +8,14 @@ import 'package:fl_chart/fl_chart.dart';
 class StatisticsScreen extends StatefulWidget {
   final int adminId;
 
-  const StatisticsScreen({
-    super.key,
-    required this.adminId,
-  });
+  const StatisticsScreen({super.key, required this.adminId});
 
   @override
   State<StatisticsScreen> createState() => _StatisticsScreenState();
 }
 
-class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerProviderStateMixin {
+class _StatisticsScreenState extends State<StatisticsScreen>
+    with SingleTickerProviderStateMixin {
   Map<String, dynamic>? _stats;
   bool _isLoading = true;
   String _selectedPeriod = '7d';
@@ -42,10 +40,13 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
       CurvedAnimation(parent: _animationController, curve: Curves.easeOut),
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(parent: _animationController, curve: Curves.easeOutCubic));
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: Curves.easeOutCubic,
+          ),
+        );
   }
 
   @override
@@ -56,16 +57,16 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
 
   Future<void> _loadStats() async {
     if (!mounted) return;
-    
+
     setState(() => _isLoading = true);
-    
+
     final response = await AdminService.getDashboardStats(
       adminId: widget.adminId,
       period: _selectedPeriod,
     );
-    
+
     if (!mounted) return;
-    
+
     if (response['success'] == true && response['data'] != null) {
       setState(() {
         _stats = response['data'];
@@ -95,9 +96,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: Container(
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(0.8),
-            ),
+            decoration: BoxDecoration(color: Colors.black.withOpacity(0.8)),
           ),
         ),
       ),
@@ -247,8 +246,16 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
   }
 
   Widget _buildDriverRankings() {
-    final topConductores = (_stats?['rankings']?['top_conductores'] as List?) ?? [];
-    final worstConductores = (_stats?['rankings']?['worst_conductores'] as List?) ?? [];
+    final topConductores =
+        (_stats?['rankings']?['top_conductores'] as List?) ?? [];
+    final worstConductores =
+        (_stats?['rankings']?['worst_conductores'] as List?) ?? [];
+    final sortedWorstConductores = List<dynamic>.from(worstConductores)
+      ..sort((a, b) {
+        final aScore = _getFlagScore(a as Map<String, dynamic>);
+        final bScore = _getFlagScore(b as Map<String, dynamic>);
+        return bScore.compareTo(aScore);
+      });
 
     if (topConductores.isEmpty && worstConductores.isEmpty) {
       return const SizedBox.shrink();
@@ -269,17 +276,17 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         const SizedBox(height: 16),
         if (topConductores.isNotEmpty)
           _buildRankingList(
-            'Mejores Conductores', 
-            topConductores, 
+            'Mejores Conductores',
+            topConductores,
             const Color(0xFFFFD700), // Dorado
             Icons.emoji_events_rounded,
           ),
-        if (topConductores.isNotEmpty && worstConductores.isNotEmpty)
+        if (topConductores.isNotEmpty && sortedWorstConductores.isNotEmpty)
           const SizedBox(height: 20),
-        if (worstConductores.isNotEmpty)
+        if (sortedWorstConductores.isNotEmpty)
           _buildRankingList(
-            'Conductores en Riesgo', 
-            worstConductores, 
+            'Conductores en Riesgo',
+            sortedWorstConductores,
             const Color(0xFFf5576c), // Rojo
             Icons.warning_amber_rounded,
           ),
@@ -287,7 +294,14 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildRankingList(String title, List<dynamic> drivers, Color accentColor, IconData icon) {
+  Widget _buildRankingList(
+    String title,
+    List<dynamic> drivers,
+    Color accentColor,
+    IconData icon,
+  ) {
+    final isRiskSection = title == 'Conductores en Riesgo';
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(24),
       child: BackdropFilter(
@@ -310,11 +324,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                       color: accentColor.withOpacity(0.2),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Icon(
-                      icon,
-                      color: accentColor,
-                      size: 20,
-                    ),
+                    child: Icon(icon, color: accentColor, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Text(
@@ -331,11 +341,22 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
               ...drivers.asMap().entries.map((entry) {
                 final index = entry.key;
                 final driver = entry.value;
-                final nombre = '${driver['nombre']} ${driver['apellido']}'.trim();
-                final rating = double.tryParse(driver['calificacion_promedio']?.toString() ?? '0') ?? 0.0;
-                final count = int.tryParse(driver['total_calificaciones']?.toString() ?? '0') ?? 0;
-                final flagAvg = double.tryParse(driver['promedio_banderas']?.toString() ?? '0') ?? 0.0;
-                final totalFlags = int.tryParse(driver['total_banderas']?.toString() ?? '0') ?? 0;
+                final nombre = '${driver['nombre']} ${driver['apellido']}'
+                    .trim();
+                final rating =
+                    double.tryParse(
+                      driver['calificacion_promedio']?.toString() ?? '0',
+                    ) ??
+                    0.0;
+                final count =
+                    int.tryParse(
+                      driver['total_calificaciones']?.toString() ?? '0',
+                    ) ??
+                    0;
+                final flagScore = _getFlagScore(driver);
+                final totalFlags =
+                    int.tryParse(driver['total_banderas']?.toString() ?? '0') ??
+                    0;
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -385,33 +406,62 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                         crossAxisAlignment: CrossAxisAlignment.end,
                         children: [
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: accentColor.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: accentColor.withOpacity(0.3)),
+                              border: Border.all(
+                                color: accentColor.withOpacity(0.3),
+                              ),
                             ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.star_rounded, color: accentColor, size: 14),
-                                const SizedBox(width: 4),
-                                Text(
-                                  rating.toStringAsFixed(1),
-                                  style: TextStyle(
-                                    color: accentColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
+                            child: isRiskSection
+                                ? Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.flag_rounded,
+                                        color: accentColor,
+                                        size: 14,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${_formatScore(flagScore)}/5',
+                                        style: TextStyle(
+                                          color: accentColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.star_rounded,
+                                        color: accentColor,
+                                        size: 14,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        rating.toStringAsFixed(1),
+                                        style: TextStyle(
+                                          color: accentColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                ),
-                              ],
-                            ),
                           ),
-                          if (flagAvg > 0)
+                          if (!isRiskSection && flagScore > 0)
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
                               child: Text(
-                                '${flagAvg.toStringAsFixed(1)}% reportes',
+                                '${flagScore.toStringAsFixed(1)}% reportes',
                                 style: TextStyle(
                                   color: Colors.redAccent.withOpacity(0.8),
                                   fontSize: 10,
@@ -430,6 +480,30 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
         ),
       ),
     );
+  }
+
+  double _getFlagScore(Map<String, dynamic> driver) {
+    final totalFlags =
+        int.tryParse(driver['total_banderas']?.toString() ?? '0') ?? 0;
+    final rawAvg =
+        double.tryParse(driver['promedio_banderas']?.toString() ?? '0') ?? 0.0;
+
+    if (totalFlags <= 0 && rawAvg <= 0) return 0;
+
+    if (rawAvg > 0 && rawAvg <= 5) {
+      return rawAvg;
+    }
+
+    if (rawAvg > 5) {
+      final scaled = (rawAvg / 100) * 5;
+      return scaled.clamp(1, 5).toDouble();
+    }
+
+    return totalFlags.clamp(1, 5).toDouble();
+  }
+
+  String _formatScore(double score) {
+    return score % 1 == 0 ? score.toStringAsFixed(0) : score.toStringAsFixed(1);
   }
 
   Widget _buildPeriodSelector() {
@@ -487,7 +561,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
 
   Widget _buildRegistrosChart() {
     final registros = _stats?['registros_ultimos_7_dias'] ?? [];
-    
+
     if (registros.isEmpty) {
       return _buildEmptyState();
     }
@@ -535,11 +609,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                           ),
                         ),
                         Text(
-                          _selectedPeriod == 'all' ? 'Histórico completo' : (_selectedPeriod == '30d' ? 'Últimos 30 días' : 'Últimos 7 días'),
-                          style: TextStyle(
-                            color: Colors.white60,
-                            fontSize: 13,
-                          ),
+                          _selectedPeriod == 'all'
+                              ? 'Histórico completo'
+                              : (_selectedPeriod == '30d'
+                                    ? 'Últimos 30 días'
+                                    : 'Últimos 7 días'),
+                          style: TextStyle(color: Colors.white60, fontSize: 13),
                         ),
                       ],
                     ),
@@ -563,10 +638,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                         sideTitles: SideTitles(
                           showTitles: true,
                           reservedSize: 30,
-                          interval: 1, // Llamamos para cada punto para controlar exactitud
+                          interval:
+                              1, // Llamamos para cada punto para controlar exactitud
                           getTitlesWidget: (double value, TitleMeta meta) {
                             final int index = value.toInt();
-                            if (index < 0 || index >= registros.length) return const SizedBox.shrink();
+                            if (index < 0 || index >= registros.length)
+                              return const SizedBox.shrink();
 
                             // Lógica de espaciado dinámico
                             int showEvery = 1;
@@ -579,17 +656,23 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                             }
 
                             // Siempre mostrar el primer y el último punto
-                            bool isEdge = index == 0 || index == registros.length - 1;
+                            bool isEdge =
+                                index == 0 || index == registros.length - 1;
                             bool isStep = index % showEvery == 0;
 
                             // Evitar colisión con el punto final
-                            if (isStep && !isEdge && (registros.length - 1 - index) < (showEvery * 0.75)) {
+                            if (isStep &&
+                                !isEdge &&
+                                (registros.length - 1 - index) <
+                                    (showEvery * 0.75)) {
                               isStep = false;
                             }
 
-                            if (!isEdge && !isStep) return const SizedBox.shrink();
+                            if (!isEdge && !isStep)
+                              return const SizedBox.shrink();
 
-                            final fecha = registros[index]['fecha']?.toString() ?? '';
+                            final fecha =
+                                registros[index]['fecha']?.toString() ?? '';
                             final parts = fecha.split('-');
                             if (parts.length >= 3) {
                               return Padding(
@@ -599,7 +682,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                                   style: TextStyle(
                                     color: Colors.white.withOpacity(0.5),
                                     fontSize: 9,
-                                    fontWeight: isEdge ? FontWeight.bold : FontWeight.normal,
+                                    fontWeight: isEdge
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
                                   ),
                                 ),
                               );
@@ -612,12 +697,15 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                         sideTitles: SideTitles(
                           showTitles: true,
                           // Ajustar intervalo Y según el máximo
-                          interval: _getMaxValue(registros) > 10 ? (_getMaxValue(registros) / 5).ceilToDouble() : 1,
+                          interval: _getMaxValue(registros) > 10
+                              ? (_getMaxValue(registros) / 5).ceilToDouble()
+                              : 1,
                           reservedSize: 35,
                           getTitlesWidget: (double value, TitleMeta meta) {
                             // No mostrar 0 si está muy pegado al eje o si es decimal
-                            if (value != value.toInt().toDouble()) return const SizedBox.shrink();
-                            
+                            if (value != value.toInt().toDouble())
+                              return const SizedBox.shrink();
+
                             return Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: Text(
@@ -637,7 +725,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                     gridData: FlGridData(
                       show: true,
                       drawVerticalLine: false,
-                      horizontalInterval: _getMaxValue(registros) > 10 ? (_getMaxValue(registros) / 5).ceilToDouble() : 1,
+                      horizontalInterval: _getMaxValue(registros) > 10
+                          ? (_getMaxValue(registros) / 5).ceilToDouble()
+                          : 1,
                       getDrawingHorizontalLine: (value) => FlLine(
                         color: Colors.white.withOpacity(0.03),
                         strokeWidth: 1,
@@ -646,7 +736,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                     minX: 0,
                     maxX: (registros.length - 1).toDouble(),
                     minY: 0,
-                    maxY: (_getMaxValue(registros) + 0.5), // Pequeño margen arriba
+                    maxY:
+                        (_getMaxValue(registros) +
+                        0.5), // Pequeño margen arriba
                     lineBarsData: [
                       LineChartBarData(
                         spots: _getChartSpots(registros),
@@ -658,7 +750,9 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                         barWidth: 2,
                         isStrokeCapRound: true,
                         dotData: FlDotData(
-                          show: registros.length <= 10, // Solo mostrar puntos en vista de 7 días
+                          show:
+                              registros.length <=
+                              10, // Solo mostrar puntos en vista de 7 días
                           getDotPainter: (spot, percent, barData, index) {
                             return FlDotCirclePainter(
                               radius: 2.5,
@@ -692,13 +786,11 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
   }
 
   List<FlSpot> _getChartSpots(List<dynamic> registros) {
-    return List.generate(
-      registros.length,
-      (index) {
-        final cantidad = int.tryParse(registros[index]['total']?.toString() ?? '0') ?? 0;
-        return FlSpot(index.toDouble(), cantidad.toDouble());
-      },
-    );
+    return List.generate(registros.length, (index) {
+      final cantidad =
+          int.tryParse(registros[index]['total']?.toString() ?? '0') ?? 0;
+      return FlSpot(index.toDouble(), cantidad.toDouble());
+    });
   }
 
   double _getMaxValue(List<dynamic> registros) {
@@ -815,7 +907,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _buildStatCard(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(18),
       child: BackdropFilter(
@@ -837,11 +934,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                   color: color.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 16,
-                ),
+                child: Icon(icon, color: color, size: 16),
               ),
               FittedBox(
                 fit: BoxFit.scaleDown,
@@ -857,10 +950,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
               ),
               Text(
                 label,
-                style: const TextStyle(
-                  color: Colors.white60,
-                  fontSize: 11,
-                ),
+                style: const TextStyle(color: Colors.white60, fontSize: 11),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -873,9 +963,12 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
 
   Widget _buildDistributionChart() {
     final solicitudes = _stats?['solicitudes'] ?? {};
-    final completadas = int.tryParse(solicitudes['completadas']?.toString() ?? '0') ?? 0;
-    final canceladas = int.tryParse(solicitudes['canceladas']?.toString() ?? '0') ?? 0;
-    final enProceso = int.tryParse(solicitudes['en_proceso']?.toString() ?? '0') ?? 0;
+    final completadas =
+        int.tryParse(solicitudes['completadas']?.toString() ?? '0') ?? 0;
+    final canceladas =
+        int.tryParse(solicitudes['canceladas']?.toString() ?? '0') ?? 0;
+    final enProceso =
+        int.tryParse(solicitudes['en_proceso']?.toString() ?? '0') ?? 0;
     final total = completadas + canceladas + enProceso;
 
     if (total == 0) return const SizedBox.shrink();
@@ -924,10 +1017,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                         ),
                         Text(
                           'Estado actual',
-                          style: TextStyle(
-                            color: Colors.white60,
-                            fontSize: 13,
-                          ),
+                          style: TextStyle(color: Colors.white60, fontSize: 13),
                         ),
                       ],
                     ),
@@ -948,7 +1038,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                           sections: [
                             PieChartSectionData(
                               value: completadas.toDouble(),
-                              title: '${((completadas / total) * 100).toStringAsFixed(0)}%',
+                              title:
+                                  '${((completadas / total) * 100).toStringAsFixed(0)}%',
                               color: const Color(0xFF11998e),
                               radius: 50,
                               titleStyle: const TextStyle(
@@ -959,7 +1050,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                             ),
                             PieChartSectionData(
                               value: canceladas.toDouble(),
-                              title: '${((canceladas / total) * 100).toStringAsFixed(0)}%',
+                              title:
+                                  '${((canceladas / total) * 100).toStringAsFixed(0)}%',
                               color: const Color(0xFFf5576c),
                               radius: 50,
                               titleStyle: const TextStyle(
@@ -970,7 +1062,8 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                             ),
                             PieChartSectionData(
                               value: enProceso.toDouble(),
-                              title: '${((enProceso / total) * 100).toStringAsFixed(0)}%',
+                              title:
+                                  '${((enProceso / total) * 100).toStringAsFixed(0)}%',
                               color: const Color(0xFFFFFF00),
                               radius: 50,
                               titleStyle: const TextStyle(
@@ -990,11 +1083,23 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _buildLegendItem('Completadas', completadas, const Color(0xFF11998e)),
+                        _buildLegendItem(
+                          'Completadas',
+                          completadas,
+                          const Color(0xFF11998e),
+                        ),
                         const SizedBox(height: 12),
-                        _buildLegendItem('Canceladas', canceladas, const Color(0xFFf5576c)),
+                        _buildLegendItem(
+                          'Canceladas',
+                          canceladas,
+                          const Color(0xFFf5576c),
+                        ),
                         const SizedBox(height: 12),
-                        _buildLegendItem('En Proceso', enProceso, const Color(0xFFFFFF00)),
+                        _buildLegendItem(
+                          'En Proceso',
+                          enProceso,
+                          const Color(0xFFFFFF00),
+                        ),
                       ],
                     ),
                   ),
@@ -1025,10 +1130,7 @@ class _StatisticsScreenState extends State<StatisticsScreen> with SingleTickerPr
             children: [
               Text(
                 label,
-                style: const TextStyle(
-                  color: Colors.white70,
-                  fontSize: 11,
-                ),
+                style: const TextStyle(color: Colors.white70, fontSize: 11),
               ),
               Text(
                 value.toString(),

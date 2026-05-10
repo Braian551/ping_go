@@ -3,6 +3,7 @@ import '../../services/conductor_service.dart';
 import 'package:intl/intl.dart';
 import '../widgets/trip_detail_sheet.dart';
 import '../../../../core/config/app_config.dart';
+import '../../../../widgets/shimmer/custom_shimmer.dart';
 
 class ConductorHistoryView extends StatefulWidget {
   final Map<String, dynamic> conductorUser;
@@ -64,7 +65,7 @@ class _ConductorHistoryViewState extends State<ConductorHistoryView> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)));
+      return CustomShimmer.listCards(count: 6);
     }
 
     if (_errorMessage != null) {

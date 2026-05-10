@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'package:ping_go/src/core/config/app_config.dart';
 import '../../services/conductor_service.dart';
 import '../widgets/payment_detail_sheet.dart';
+import '../../../../widgets/shimmer/custom_shimmer.dart';
 
 class ConductorEarningsScreen extends StatefulWidget {
   final Map<String, dynamic> conductorUser;
@@ -83,7 +84,28 @@ class _ConductorEarningsScreenState extends State<ConductorEarningsScreen> {
         elevation: 0,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(color: Color(0xFFFFFF00)))
+          ? Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CustomShimmer.card(height: 180, borderRadius: 24),
+                  const SizedBox(height: 24),
+                  CustomShimmer.card(height: 140, borderRadius: 24),
+                  const SizedBox(height: 32),
+                  const Text(
+                    'Historial de Pagos',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Expanded(child: CustomShimmer.listCards(count: 3)),
+                ],
+              ),
+            )
           : _error.isNotEmpty
               ? _buildErrorView()
               : RefreshIndicator(

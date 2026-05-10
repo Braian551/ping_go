@@ -136,18 +136,16 @@ class TripRequestService {
       print('📥 Respuesta de cancelación - Status: ${response.statusCode}');
       print('📄 Body: ${response.body}');
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (data['success'] == true) {
-          print('✅ Solicitud cancelada exitosamente');
-          return true;
-        } else {
-          print('❌ Error al cancelar: ${data['message']}');
-          throw Exception(data['message'] ?? 'Error al cancelar la solicitud');
-        }
+      final data = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && data['success'] == true) {
+        print('Solicitud cancelada exitosamente');
+        return true;
       } else {
-        print('❌ Error del servidor: ${response.statusCode}');
-        throw Exception('Error del servidor: ${response.statusCode}');
+        // Extraer el mensaje descriptivo del backend (incluso en respuestas 400)
+        final serverMsg = data['message'] ?? 'Error al cancelar la solicitud';
+        print('Error al cancelar: $serverMsg');
+        throw Exception(serverMsg);
       }
     } catch (e) {
       print('❌ Error cancelando solicitud: $e');

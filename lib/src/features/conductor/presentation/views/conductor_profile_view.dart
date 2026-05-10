@@ -5,6 +5,8 @@ import 'package:ping_go/src/features/user/presentation/screens/edit_profile_scre
 import 'package:ping_go/src/global/services/auth/user_service.dart';
 import 'package:ping_go/src/routes/route_names.dart';
 import 'package:ping_go/src/features/conductor/presentation/screens/conductor_earnings_screen.dart';
+import 'package:ping_go/src/features/conductor/presentation/screens/commission_payment_screen.dart';
+import 'package:ping_go/src/features/shared/widgets/profile_shared_widgets.dart';
 import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
 
 class ConductorProfileView extends StatelessWidget {
@@ -25,7 +27,7 @@ class ConductorProfileView extends StatelessWidget {
       child: Column(
         children: [
           const SizedBox(height: 20),
-          _buildProfileHeader(),
+          _buildProfileHeader(context),
           const SizedBox(height: 24),
           _buildProfileMenu(context),
         ],
@@ -33,331 +35,90 @@ class ConductorProfileView extends StatelessWidget {
     );
   }
 
-  String _getCorrectImageUrl(String path) {
-    if (path.startsWith('http')) return path;
-    
-    // Normalize path
-    String cleanPath = path;
-    if (!cleanPath.startsWith('uploads/')) {
-      cleanPath = 'uploads/$cleanPath';
-    }
-
-    final baseUrl = AppConfig.baseUrl;
-    String rootUrl = baseUrl;
-    // Go up one level from backend-deploy to reach uploads folder
-    if (baseUrl.endsWith('/backend-deploy')) {
-      rootUrl = baseUrl.substring(0, baseUrl.length - '/backend-deploy'.length);
-    } else if (baseUrl.endsWith('backend-deploy/')) {
-       rootUrl = baseUrl.substring(0, baseUrl.length - 'backend-deploy/'.length); 
-    }
-    
-    return '$rootUrl/$cleanPath';
-  }
-
-  Widget _buildProfileAvatar() {
-    final imageUrl = conductorUser['url_imagen_perfil'];
-    final hasImage = imageUrl != null && imageUrl.toString().isNotEmpty;
-    
-    return Container(
-      width: 100,
-      height: 100,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: const Color(0xFFFFFF00).withOpacity(0.1),
-        border: Border.all(
-          color: const Color(0xFFFFFF00).withOpacity(0.3),
-          width: 2,
-        ),
-      ),
-      child: ClipOval(
-        child: hasImage
-            ? Image.network(
-                _getCorrectImageUrl(imageUrl.toString()),
-                fit: BoxFit.cover,
-                width: 100,
-                height: 100,
-                errorBuilder: (context, error, stackTrace) => _buildInitialAvatar(),
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Center(
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        const Color(0xFFFFFF00).withOpacity(0.5),
-                      ),
-                    ),
-                  );
-                },
-              )
-            : _buildInitialAvatar(),
-      ),
-    );
-  }
-
-  Widget _buildInitialAvatar() {
-    return Center(
-      child: Text(
-        (conductorUser['nombre'] ?? 'C')[0].toUpperCase(),
-        style: const TextStyle(
-          color: Color(0xFFFFFF00),
-          fontSize: 40,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A).withOpacity(0.6),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.1),
-              width: 1.5,
-            ),
-          ),
-          child: Column(
-            children: [
-              _buildProfileAvatar(),
-              const SizedBox(height: 16),
-              Text(
-                '${conductorUser['nombre']} ${conductorUser['apellido'] ?? ''}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              Text(
-                conductorUser['email'] ?? '',
-                style: TextStyle(
-                  color: Colors.white.withOpacity(0.6),
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                   const Icon(Icons.star_rounded, color: Color(0xFFFFD700), size: 20),
-                   const SizedBox(width: 4),
-                   Text(
-                     (double.tryParse(conductorUser['calificacion_promedio']?.toString() ?? '0') ?? 5.0).toStringAsFixed(1),
-                     style: const TextStyle(
-                       color: Colors.white,
-                       fontSize: 16,
-                       fontWeight: FontWeight.bold,
-                     ),
-                   ),
-                   if (conductorUser['total_calificaciones'] != null && 
-                       (int.tryParse(conductorUser['total_calificaciones'].toString()) ?? 0) > 0)
-                     Text(
-                       ' (${conductorUser['total_calificaciones']})',
-                       style: TextStyle(
-                         color: Colors.white.withOpacity(0.6),
-                         fontSize: 14,
-                       ),
-                     ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+  Widget _buildProfileHeader(BuildContext context) {
+    return ProfileHeaderCard(
+      name: '${conductorUser['nombre']} ${conductorUser['apellido'] ?? ''}',
+      email: conductorUser['email'],
+      imageUrl: conductorUser['url_imagen_perfil'],
+      rating: double.tryParse(conductorUser['calificacion_promedio']?.toString() ?? '5.0') ?? 5.0,
+      totalRatings: int.tryParse(conductorUser['total_calificaciones']?.toString() ?? '0') ?? 0,
     );
   }
 
   Widget _buildProfileMenu(BuildContext context) {
     return Column(
       children: [
-        _buildMenuItem(context, Icons.person_outline_rounded, 'Editar Perfil', () async {
-          final result = await Navigator.push(
-            context,
-            MaterialPageRoute(
-               builder: (context) => EditProfileScreen(user: conductorUser),
-            ),
-          );
-          if (result == true && onProfileUpdate != null) {
-            onProfileUpdate!();
-          }
-        }),
+        ProfileMenuItem(
+          icon: Icons.person_outline_rounded,
+          title: 'Editar Perfil',
+          onTap: () async {
+            final result = await Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => EditProfileScreen(user: conductorUser),
+              ),
+            );
+            if (result == true && onProfileUpdate != null) {
+              onProfileUpdate!();
+            }
+          },
+        ),
+        ProfileMenuItem(
+          icon: Icons.history_rounded,
+          title: 'Historial de Viajes',
+          onTap: () {},
+        ),
+        ProfileMenuItem(
+          icon: Icons.attach_money_rounded,
+          title: 'Información de Pago',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => ConductorEarningsScreen(conductorUser: conductorUser),
+              ),
+            );
+          },
+        ),
+        ProfileMenuItem(
+          icon: Icons.receipt_long_rounded,
+          title: 'Pagar Comisión',
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => CommissionPaymentScreen(conductorUser: conductorUser),
+              ),
+            );
+          },
+        ),
+        ProfileMenuItem(
+          icon: Icons.settings_outlined,
+          title: 'Configuración',
+          onTap: () {
+            CustomSnackbar.showInfo(context, message: 'Función en desarrollo');
+          },
+        ),
+        ProfileMenuItem(
+          icon: Icons.help_outline_rounded,
+          title: 'Ayuda y Soporte',
+          onTap: () {
+            CustomSnackbar.showInfo(context, message: 'Función en desarrollo');
+          },
+        ),
         const SizedBox(height: 12),
-        _buildMenuItem(context, Icons.history_rounded, 'Historial de Viajes', () {}),
-        const SizedBox(height: 12),
-        _buildMenuItem(context, Icons.attach_money_rounded, 'Información de Pago', () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-               builder: (context) => ConductorEarningsScreen(conductorUser: conductorUser),
-            ),
-          );
-        }),
-        const SizedBox(height: 12),
-        _buildMenuItem(context, Icons.settings_outlined, 'Configuración', () {
-          CustomSnackbar.showInfo(context, message: 'Función en desarrollo');
-        }),
-        const SizedBox(height: 12),
-        _buildMenuItem(context, Icons.help_outline_rounded, 'Ayuda y Soporte', () {
-          CustomSnackbar.showInfo(context, message: 'Función en desarrollo');
-        }),
-        const SizedBox(height: 24),
-        _buildMenuItem(
-          context, 
-          Icons.logout_rounded, 
-          'Cerrar Sesión', 
-          () => _handleLogout(context),
+        ProfileMenuItem(
+          icon: Icons.logout_rounded,
+          title: 'Cerrar Sesión',
           isLogout: true,
+          onTap: () => _handleLogout(context),
         ),
       ],
     );
   }
 
-  Widget _buildMenuItem(
-    BuildContext context, 
-    IconData icon, 
-    String title, 
-    VoidCallback onTap, 
-    {bool isLogout = false}
-  ) {
-    return GestureDetector(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isLogout 
-                  ? Colors.red.withOpacity(0.1) 
-                  : const Color(0xFF1A1A1A).withOpacity(0.6),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isLogout 
-                    ? Colors.red.withOpacity(0.3)
-                    : Colors.white.withOpacity(0.1),
-                width: 1.5,
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: isLogout
-                        ? Colors.red.withOpacity(0.2)
-                        : const Color(0xFFFFFF00).withOpacity(0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    icon, 
-                    color: isLogout 
-                        ? Colors.red 
-                        : const Color(0xFFFFFF00), 
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: isLogout ? Colors.red : Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios_rounded, 
-                  color: isLogout 
-                      ? Colors.red.withOpacity(0.5) 
-                      : Colors.white.withOpacity(0.3), 
-                  size: 16,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Future<void> _handleLogout(BuildContext context) async {
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A).withOpacity(0.95),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
-                  width: 1.5,
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.logout_rounded, color: Colors.red, size: 40),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Cerrar Sesión',
-                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    '¿Estás seguro de que deseas salir?',
-                    style: TextStyle(color: Colors.white70),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancelar', style: TextStyle(color: Colors.white)),
-                        ),
-                      ),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text('Salir', style: TextStyle(color: Colors.white)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    final shouldLogout = await ProfileLogoutDialog.show(context);
 
     if (shouldLogout == true) {
       await UserService.clearSession();

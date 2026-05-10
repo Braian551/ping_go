@@ -57,6 +57,7 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
   Timer? _durationTimer;
   Duration _tripDuration = Duration.zero;
   Timer? _statusPollTimer;
+  double? _currentPrice; // Real-time price from backend
 
   @override
   void initState() {
@@ -205,6 +206,8 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
          final response = await TripRequestService.getTripStatus(solicitudId: solicitudId);
          if (response['success'] == true) {
            final status = response['trip']['estado'];
+           
+           // 1. Check for cancellation
            if (status == 'cancelada' && mounted) {
              _statusPollTimer?.cancel();
              _positionStream?.cancel();
@@ -234,12 +237,38 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
                  ],
                ),
              );
+             return;
+           }
+
+           // 2. Fetch real-time price if in trip
+           if (_currentStatus == 'En viaje' && mounted) {
+             _fetchRealTimePrice();
            }
          }
        } catch (e) {
          print('Error polling trip status: $e');
        }
     });
+  }
+
+  Future<void> _fetchRealTimePrice() async {
+    try {
+      final summary = await ConductorService.getTripSummary(
+        solicitudId: _solicitudId,
+        conductorId: widget.conductorId,
+        distanciaKm: _accumulatedDistanceKm,
+        duracionSegundos: _tripDuration.inSeconds,
+      );
+
+      if (summary != null && summary['success'] == true && mounted) {
+        setState(() {
+          _currentPrice = double.tryParse(summary['calculo']['total'].toString());
+        });
+        print('DEBUG: Real-time price updated: $_currentPrice');
+      }
+    } catch (e) {
+      print('Error fetching real-time price: $e');
+    }
   }
   
   void _startTripTimer() {
@@ -485,6 +514,7 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
             await _clearPersistedMetrics();
             _durationTimer?.cancel();
             _positionStream?.cancel();
+            _statusPollTimer?.cancel(); // Cancel polling when finished
             
             // Capture final metrics before navigation
             final finalDistVal = _accumulatedDistanceKm;
@@ -502,7 +532,15 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
                   ),
                 ),
               ).then((_) {
-                 if (mounted) Navigator.pop(context);
+                if (mounted) {
+                  // Navigate to home instead of pop to avoid black screen on session recovery
+                  Navigator.pushNamedAndRemoveUntil(
+                    context, 
+                    RouteNames.conductorHome, 
+                    (route) => false,
+                    arguments: {'conductor_user': widget.tripData['conductor_user'] ?? widget.tripData}
+                  );
+                }
               });
             }
         } else {
@@ -633,6 +671,23 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Price (Highlighted) - Real-time during trip
+                  Center(
+                    child: Text(
+                      '\$ ${_formatPrice(_currentPrice ?? widget.tripData['precio_estimado'])}',
+                      style: const TextStyle(
+                        color: Color(0xFF00E676), // Bright Green
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    _currentStatus == 'En viaje' ? 'Precio Real' : 'Precio Estimado',
+                    style: const TextStyle(color: Colors.white54, fontSize: 10),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
                        CircleAvatar(
@@ -795,6 +850,15 @@ class _DriverTripScreenState extends State<DriverTripScreen> {
       return '${twoDigits(d.inMinutes)}:${twoDigits(d.inSeconds.remainder(60))}';
     }
   }
+
+  String _formatPrice(dynamic price) {
+    if (price == null) return '0';
+    final value = double.tryParse(price.toString()) ?? 0.0;
+    final parts = value.toStringAsFixed(0).split('.');
+    final regex = RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))');
+    return parts[0].replaceAllMapped(regex, (Match m) => '${m[1]}.');
+  }
+
   String _getVehicleAsset() {
     final type = widget.vehicleType?.toLowerCase() ?? '';
     // Check for motorcycle keywords

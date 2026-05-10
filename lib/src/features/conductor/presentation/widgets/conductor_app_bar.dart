@@ -1,5 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../../providers/conductor_status_provider.dart';
 
 class ConductorAppBar extends StatelessWidget implements PreferredSizeWidget {
   final Map<String, dynamic> conductorUser;
@@ -63,7 +65,25 @@ class ConductorAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ],
       ),
-      actions: [],
+      actions: [
+        Consumer<ConductorStatusProvider>(
+          builder: (context, statusProvider, _) {
+            if (!statusProvider.isOnline) return const SizedBox();
+            return Container(
+              margin: const EdgeInsets.only(right: 16),
+              width: 12,
+              height: 12,
+              decoration: const BoxDecoration(
+                color: Color(0xFF00E676),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(color: Color(0xFF00E676), blurRadius: 8, spreadRadius: 1),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
     );
   }
 

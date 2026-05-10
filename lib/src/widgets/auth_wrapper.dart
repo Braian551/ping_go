@@ -275,38 +275,15 @@ class _AuthWrapperState extends State<AuthWrapper>
 
                     const SizedBox(height: 32),
 
-                    // Indicador de carga con diseño moderno
-                    SizedBox(
+                    // Indicador de carga
+                    const SizedBox(
                       width: 40,
                       height: 40,
-                      child: Stack(
-                        alignment: Alignment.center,
-                        children: [
-                          // Círculo exterior
-                          SizedBox(
-                            width: 40,
-                            height: 40,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 3,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                const Color(0xFFFFFF00).withOpacity(0.3),
-                              ),
-                              value: null,
-                            ),
-                          ),
-                          // Círculo interior
-                          SizedBox(
-                            width: 28,
-                            height: 28,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              valueColor: const AlwaysStoppedAnimation<Color>(
-                                Color(0xFFFFFF00),
-                              ),
-                              value: null,
-                            ),
-                          ),
-                        ],
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          Color(0xFFFFFF00),
+                        ),
                       ),
                     ),
                   ],

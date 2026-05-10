@@ -3,7 +3,7 @@ import 'dart:convert';
 import '../../../core/config/app_config.dart';
 
 /// Servicio para operaciones de conductor
-/// 
+///
 /// NOTA: Este servicio es redundante con ConductorRemoteDataSource.
 /// Se mantiene por compatibilidad, pero debería migrarse a usar
 /// el patrón de Clean Architecture (Repository -> DataSource)
@@ -19,7 +19,9 @@ class ConductorService {
         headers: {'Accept': 'application/json'},
       );
 
-      print('Conductor info response (${response.statusCode}): ${response.body}');
+      print(
+        'Conductor info response (${response.statusCode}): ${response.body}',
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -35,7 +37,9 @@ class ConductorService {
   }
 
   /// Obtener viajes activos del conductor
-  static Future<List<Map<String, dynamic>>> getViajesActivos(int conductorId) async {
+  static Future<List<Map<String, dynamic>>> getViajesActivos(
+    int conductorId,
+  ) async {
     try {
       final response = await http.get(
         Uri.parse('$baseUrl/get_viajes_activos.php?conductor_id=$conductorId'),
@@ -62,9 +66,10 @@ class ConductorService {
     int limit = 20,
   }) async {
     try {
-      final url = '$baseUrl/get_historial.php?conductor_id=$conductorId&page=$page&limit=$limit';
+      final url =
+          '$baseUrl/get_historial.php?conductor_id=$conductorId&page=$page&limit=$limit';
       print('DEBUG: getHistorialViajes URL: $url');
-      
+
       final response = await http.get(
         Uri.parse(url),
         headers: {'Accept': 'application/json'},
@@ -78,12 +83,27 @@ class ConductorService {
         if (data['success'] == true) {
           return data;
         }
-        return {'success': false, 'viajes': [], 'total': 0, 'message': data['message'] ?? 'Error desconocido'};
+        return {
+          'success': false,
+          'viajes': [],
+          'total': 0,
+          'message': data['message'] ?? 'Error desconocido',
+        };
       }
-      return {'success': false, 'viajes': [], 'total': 0, 'message': 'Error del servidor: ${response.statusCode}'};
+      return {
+        'success': false,
+        'viajes': [],
+        'total': 0,
+        'message': 'Error del servidor: ${response.statusCode}',
+      };
     } catch (e) {
       print('Error obteniendo historial de viajes: $e');
-      return {'success': false, 'viajes': [], 'total': 0, 'message': e.toString()};
+      return {
+        'success': false,
+        'viajes': [],
+        'total': 0,
+        'message': e.toString(),
+      };
     }
   }
 
@@ -92,7 +112,7 @@ class ConductorService {
     try {
       final url = '$baseUrl/get_estadisticas.php?conductor_id=$conductorId';
       print('DEBUG: getEstadisticas URL: $url');
-      
+
       final response = await http.get(
         Uri.parse(url),
         headers: {'Accept': 'application/json'},
@@ -113,7 +133,6 @@ class ConductorService {
       return {};
     }
   }
-
 
   /// Actualizar estado de disponibilidad del conductor
   static Future<bool> actualizarDisponibilidad({
@@ -178,12 +197,16 @@ class ConductorService {
       print('Accept response (${response.statusCode}): ${response.body}');
 
       final data = jsonDecode(response.body) as Map<String, dynamic>;
-      
+
       if (response.statusCode == 200) {
         return data;
       }
       // Return actual error message from server
-      return {'success': false, 'message': data['message'] ?? 'Error del servidor (${response.statusCode})'};
+      return {
+        'success': false,
+        'message':
+            data['message'] ?? 'Error del servidor (${response.statusCode})',
+      };
     } catch (e) {
       print('Error aceptando solicitud: $e');
       return {'success': false, 'message': e.toString()};
@@ -222,17 +245,23 @@ class ConductorService {
   }
 
   /// Obtener lista de solicitudes disponibles (incluyendo rechazadas si siguen activas)
-  static Future<List<Map<String, dynamic>>> getAvailableRequests(int conductorId) async {
+  static Future<List<Map<String, dynamic>>> getAvailableRequests(
+    int conductorId,
+  ) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/get_available_requests.php?conductor_id=$conductorId'),
+        Uri.parse(
+          '$baseUrl/get_available_requests.php?conductor_id=$conductorId',
+        ),
         headers: {'Accept': 'application/json'},
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['success'] == true && data['requests'] != null) {
-          return List<Map<String, dynamic>>.from(data['requests']);
+          return List<Map<String, dynamic>>.from(
+            data['requests'],
+          ).map(_normalizeAssignment).toList();
         }
       }
       return [];
@@ -329,7 +358,8 @@ class ConductorService {
         if (anoVehiculo != null) 'ano_vehiculo': anoVehiculo,
         if (colorVehiculo != null) 'color_vehiculo': colorVehiculo,
         if (aseguradora != null) 'aseguradora': aseguradora,
-        if (numeroPolizaSeguro != null) 'numero_poliza_seguro': numeroPolizaSeguro,
+        if (numeroPolizaSeguro != null)
+          'numero_poliza_seguro': numeroPolizaSeguro,
         if (vencimientoSeguro != null) 'vencimiento_seguro': vencimientoSeguro,
       };
 
@@ -343,18 +373,23 @@ class ConductorService {
         },
         body: jsonEncode(body),
       );
-      
-      print('Respuesta submitVerification (${response.statusCode}): ${response.body}');
+
+      print(
+        'Respuesta submitVerification (${response.statusCode}): ${response.body}',
+      );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       } else {
-         try {
-           final errorData = jsonDecode(response.body);
-           return {'success': false, 'message': errorData['message'] ?? 'Error del servidor'};
-         } catch (_) {
-           return {'success': false, 'message': 'Error ${response.statusCode}'};
-         }
+        try {
+          final errorData = jsonDecode(response.body);
+          return {
+            'success': false,
+            'message': errorData['message'] ?? 'Error del servidor',
+          };
+        } catch (_) {
+          return {'success': false, 'message': 'Error ${response.statusCode}'};
+        }
       }
     } catch (e) {
       print('Error enviando verificación: $e');
@@ -371,7 +406,9 @@ class ConductorService {
         headers: {'Accept': 'application/json'},
       );
 
-      print('Respuesta getConductorProfile (${response.statusCode}): ${response.body}');
+      print(
+        'Respuesta getConductorProfile (${response.statusCode}): ${response.body}',
+      );
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
@@ -382,6 +419,7 @@ class ConductorService {
       return {'success': false, 'message': e.toString()};
     }
   }
+
   /// Subir documento de conductor
   static Future<Map<String, dynamic>> uploadDocument({
     required int conductorId,
@@ -391,42 +429,51 @@ class ConductorService {
     try {
       final uri = Uri.parse('$baseUrl/upload_documents.php');
       final request = http.MultipartRequest('POST', uri);
-      
+
       request.fields['conductor_id'] = conductorId.toString();
       request.fields['type'] = type;
       request.files.add(await http.MultipartFile.fromPath('file', filePath));
-      
+
       final streamedResponse = await request.send();
       final response = await http.Response.fromStream(streamedResponse);
-      
+
       print('Respuesta uploadDocument ($type): ${response.body}');
-      
+
       if (response.statusCode == 200) {
         return jsonDecode(response.body);
       }
       try {
         return jsonDecode(response.body);
       } catch (_) {
-        return {'success': false, 'message': 'Error del servidor (${response.statusCode})'};
+        return {
+          'success': false,
+          'message': 'Error del servidor (${response.statusCode})',
+        };
       }
     } catch (e) {
       print('Error subiendo documento $type: $e');
       return {'success': false, 'message': e.toString()};
     }
   }
-  
+
   /// Buscar solicitudes pendientes
-  static Future<Map<String, dynamic>?> getPendingAssignments(int conductorId) async {
+  static Future<Map<String, dynamic>?> getPendingAssignments(
+    int conductorId,
+  ) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/get_pending_assignments.php?conductor_id=$conductorId'),
+        Uri.parse(
+          '$baseUrl/get_pending_assignments.php?conductor_id=$conductorId',
+        ),
         headers: {'Accept': 'application/json'},
       );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         if (data['success'] == true && data['hay_solicitud'] == true) {
-          return data['solicitud'];
+          return _normalizeAssignment(
+            Map<String, dynamic>.from(data['solicitud'] as Map),
+          );
         }
       }
       return null;
@@ -457,13 +504,17 @@ class ConductorService {
         }),
       );
 
-      print('UpdateTripStatus Response (${response.statusCode}): ${response.body}');
+      print(
+        'UpdateTripStatus Response (${response.statusCode}): ${response.body}',
+      );
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['success'] == true;
       }
-      print('UpdateTripStatus Failed: Status ${response.statusCode}, Body: ${response.body}');
+      print(
+        'UpdateTripStatus Failed: Status ${response.statusCode}, Body: ${response.body}',
+      );
       return false;
     } catch (e) {
       print('Error actualizando estado viaje: $e');
@@ -506,34 +557,50 @@ class ConductorService {
   }
 
   /// Obtener historial de pagos de comisiones del conductor
-  static Future<Map<String, dynamic>> getCommissionHistory(int conductorId) async {
+  static Future<Map<String, dynamic>> getCommissionHistory(
+    int conductorId,
+  ) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/get_driver_commission_history.php?conductor_id=$conductorId'),
+        Uri.parse(
+          '$baseUrl/get_driver_commission_history.php?conductor_id=$conductorId',
+        ),
         headers: {'Accept': 'application/json'},
       );
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
-      return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+      return {
+        'success': false,
+        'message': 'Error del servidor: ${response.statusCode}',
+      };
     } catch (e) {
       print('Error obteniendo historial de comisiones: $e');
       return {'success': false, 'message': e.toString()};
     }
   }
+
   /// Obtener detalles de un pago específico (lista de viajes liquidados)
-  static Future<Map<String, dynamic>> getPaymentDetails(int conductorId, String fechaPago) async {
+  static Future<Map<String, dynamic>> getPaymentDetails(
+    int conductorId,
+    String fechaPago,
+  ) async {
     try {
       final response = await http.get(
-        Uri.parse('$baseUrl/get_payment_details.php?conductor_id=$conductorId&fecha_pago=$fechaPago'),
+        Uri.parse(
+          '$baseUrl/get_payment_details.php?conductor_id=$conductorId&fecha_pago=$fechaPago',
+        ),
         headers: {'Accept': 'application/json'},
       );
 
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
-      return {'success': false, 'message': 'Error del servidor: ${response.statusCode}'};
+      return {
+        'success': false,
+        'message': 'Error del servidor: ${response.statusCode}',
+      };
     } catch (e) {
       print('Error obteniendo detalles del pago: $e');
       return {'success': false, 'message': e.toString()};
@@ -550,22 +617,29 @@ class ConductorService {
     String comentario = '',
   }) async {
     try {
-      print('⭐ Conductor $conductorId calificando cliente - solicitud: $solicitudId, rating: $calificacion, tipo: $tipoCalificacion');
-      
-      final response = await http.post(
-        Uri.parse('$baseUrl/rate_client.php'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'solicitud_id': solicitudId,
-          'conductor_id': conductorId,
-          'calificacion': calificacion,
-          'tipo_calificacion': tipoCalificacion,
-          'motivo_bandera': motivoBandera,
-          'comentario': comentario,
-        }),
-      ).timeout(const Duration(seconds: 10), onTimeout: () {
-        throw Exception('Tiempo de espera agotado');
-      });
+      print(
+        '⭐ Conductor $conductorId calificando cliente - solicitud: $solicitudId, rating: $calificacion, tipo: $tipoCalificacion',
+      );
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/rate_client.php'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'solicitud_id': solicitudId,
+              'conductor_id': conductorId,
+              'calificacion': calificacion,
+              'tipo_calificacion': tipoCalificacion,
+              'motivo_bandera': motivoBandera,
+              'comentario': comentario,
+            }),
+          )
+          .timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              throw Exception('Tiempo de espera agotado');
+            },
+          );
 
       print('📥 Respuesta rateClient - Status: ${response.statusCode}');
       print('📄 Body: ${response.body}');
@@ -580,10 +654,7 @@ class ConductorService {
       }
     } catch (e) {
       print('❌ Error calificando cliente: $e');
-      return {
-        'success': false,
-        'message': 'Error de conexión: $e',
-      };
+      return {'success': false, 'message': 'Error de conexión: $e'};
     }
   }
 
@@ -591,7 +662,9 @@ class ConductorService {
   static Future<Map<String, dynamic>?> getActiveTrip(int conductorId) async {
     try {
       final response = await http.get(
-        Uri.parse('${AppConfig.baseUrl}/trips/get_active_trip.php?conductor_id=$conductorId'),
+        Uri.parse(
+          '${AppConfig.baseUrl}/trips/get_active_trip.php?conductor_id=$conductorId',
+        ),
       );
 
       if (response.statusCode == 200) {
@@ -605,5 +678,95 @@ class ConductorService {
       print('Error en getActiveTrip conductor: $e');
       return null;
     }
+  }
+
+  /// Obtener estado de comisión del conductor (deuda, tope, cuenta bancaria)
+  static Future<Map<String, dynamic>> getCommissionStatus(
+    int conductorId,
+  ) async {
+    try {
+      final response = await http.get(
+        Uri.parse(
+          '$baseUrl/get_commission_status.php?conductor_id=$conductorId',
+        ),
+        headers: {'Accept': 'application/json'},
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      return {
+        'success': false,
+        'message': 'Error del servidor: ${response.statusCode}',
+      };
+    } catch (e) {
+      print('Error obteniendo estado de comisión: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  /// Enviar comprobante de pago de comisión (multipart upload)
+  static Future<Map<String, dynamic>> submitCommissionPayment({
+    required int conductorId,
+    required String filePath,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/submit_commission_payment.php');
+      final request = http.MultipartRequest('POST', uri);
+
+      request.fields['conductor_id'] = conductorId.toString();
+      request.files.add(
+        await http.MultipartFile.fromPath('comprobante', filePath),
+      );
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      print('Respuesta submitCommissionPayment: ${response.body}');
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+      try {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } catch (_) {
+        return {
+          'success': false,
+          'message': 'Error del servidor (${response.statusCode})',
+        };
+      }
+    } catch (e) {
+      print('Error enviando comprobante de comisión: $e');
+      return {'success': false, 'message': e.toString()};
+    }
+  }
+
+  static Map<String, dynamic> _normalizeAssignment(
+    Map<String, dynamic> assignment,
+  ) {
+    final normalized = Map<String, dynamic>.from(assignment);
+    normalized['precio_estimado'] = _firstMeaningfulValue(normalized, const [
+      'precio_estimado',
+      'precio',
+      'precio_aproximado',
+      'monto_total',
+      'tarifa_base',
+      'precio_final',
+    ]);
+    return normalized;
+  }
+
+  static dynamic _firstMeaningfulValue(
+    Map<String, dynamic> source,
+    List<String> keys,
+  ) {
+    for (final key in keys) {
+      final value = source[key];
+      if (value == null) continue;
+      final text = value.toString().trim().toLowerCase();
+      if (text.isEmpty || text == 'null') continue;
+      return value;
+    }
+    return null;
   }
 }

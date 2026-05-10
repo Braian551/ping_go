@@ -2,6 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:ping_go/src/global/services/auth/user_service.dart';
 import 'package:ping_go/src/routes/route_names.dart';
+import 'package:ping_go/src/features/shared/widgets/profile_shared_widgets.dart';
 
 class AdminProfileTab extends StatefulWidget {
   final Map<String, dynamic> adminUser;
@@ -48,79 +49,13 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
   }
 
   Widget _buildProfileHeader(String name, String email) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                const Color(0xFFFFFF00).withOpacity(0.2),
-                const Color(0xFFffa726).withOpacity(0.1),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: const Color(0xFFFFFF00).withOpacity(0.3),
-              width: 1.5,
-            ),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFFF00).withOpacity(0.9),
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFFFF00).withOpacity(0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.admin_panel_settings_rounded,
-                  color: Colors.black,
-                  size: 40,
-                ),
-              ),
-              const SizedBox(width: 20),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.3,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Administrador del Sistema',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
+    return ProfileHeaderCard(
+      name: name,
+      email: email,
+      customAvatarIcon: const Icon(
+        Icons.admin_panel_settings_rounded,
+        color: Colors.white,
+        size: 40,
       ),
     );
   }
@@ -244,105 +179,37 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           ),
         ),
         const SizedBox(height: 16),
-        _buildSettingItem(
+        ProfileMenuItem(
           icon: Icons.edit_outlined,
           title: 'Editar perfil',
-          onTap: () {
-            _showComingSoon();
-          },
+          onTap: _showComingSoon,
         ),
-        const SizedBox(height: 12),
-        _buildSettingItem(
+        ProfileMenuItem(
           icon: Icons.lock_outline_rounded,
           title: 'Cambiar contraseña',
-          onTap: () {
-            _showComingSoon();
-          },
+          onTap: _showComingSoon,
         ),
-        const SizedBox(height: 12),
-        _buildSettingItem(
+        ProfileMenuItem(
           icon: Icons.help_outline_rounded,
           title: 'Ayuda y soporte',
-          onTap: () {
-            _showComingSoon();
-          },
+          onTap: _showComingSoon,
         ),
-        const SizedBox(height: 12),
-        _buildSettingItem(
+        ProfileMenuItem(
           icon: Icons.info_outline_rounded,
           title: 'Acerca de',
-          onTap: () {
-            _showAboutDialog();
-          },
+          onTap: _showAboutDialog,
         ),
       ],
     );
   }
 
-  Widget _buildSettingItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A).withOpacity(0.6),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.1),
-                width: 1,
-              ),
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: InkWell(
-                onTap: onTap,
-                borderRadius: BorderRadius.circular(16),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Icon(icon, color: Colors.white.withOpacity(0.7), size: 24),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: Text(
-                          title,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                      Icon(
-                        Icons.arrow_forward_ios_rounded,
-                        color: Colors.white.withOpacity(0.3),
-                        size: 16,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildLogoutButton() {
-    return GestureDetector(
+    return ProfileMenuItem(
+      icon: Icons.logout_rounded,
+      title: 'Cerrar sesión',
+      isLogout: true,
       onTap: () async {
-        final shouldLogout = await showDialog<bool>(
-          context: context,
-          builder: (context) => _buildLogoutDialog(),
-        );
+        final shouldLogout = await ProfileLogoutDialog.show(context);
 
         if (shouldLogout == true && mounted) {
           await UserService.clearSession();
@@ -356,152 +223,6 @@ class _AdminProfileTabState extends State<AdminProfileTab> with AutomaticKeepAli
           );
         }
       },
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFFf5576c).withOpacity(0.15),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(
-                color: const Color(0xFFf5576c).withOpacity(0.3),
-                width: 1.5,
-              ),
-            ),
-            child: const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  Icons.logout_rounded,
-                  color: Color(0xFFf5576c),
-                  size: 24,
-                ),
-                SizedBox(width: 12),
-                Text(
-                  'Cerrar sesión',
-                  style: TextStyle(
-                    color: Color(0xFFf5576c),
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogoutDialog() {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1A1A1A).withOpacity(0.95),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.1),
-                width: 1.5,
-              ),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFf5576c).withOpacity(0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.logout_rounded,
-                    color: Color(0xFFf5576c),
-                    size: 40,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  '¿Cerrar sesión?',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '¿Estás seguro de que deseas cerrar sesión?',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
-                    fontSize: 14,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context, false),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: Colors.white.withOpacity(0.1),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            'Cancelar',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: TextButton(
-                        onPressed: () => Navigator.pop(context, true),
-                        style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          backgroundColor: const Color(0xFFf5576c),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                        ),
-                        child: const FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            'Cerrar sesión',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 

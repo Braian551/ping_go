@@ -9,9 +9,12 @@ import 'package:ping_go/src/global/services/auth/user_service.dart';
 import 'package:ping_go/src/features/conductor/services/conductor_service.dart';
 import 'package:ping_go/src/widgets/snackbars/custom_snackbar.dart';
 import 'package:shimmer/shimmer.dart';
+import '../../../../widgets/shimmer/custom_shimmer.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../services/trip_request_service.dart';
+
+import 'package:ping_go/src/features/shared/widgets/profile_shared_widgets.dart';
 
 import 'edit_profile_screen.dart';
 import 'payment_methods_screen.dart';
@@ -251,77 +254,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
   }
 
   Future<void> _handleLogout() async {
-    final shouldLogout = await showDialog<bool>(
-      context: context,
-      builder: (context) => Dialog(
-        backgroundColor: Colors.transparent,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1A1A1A).withOpacity(0.95),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.1),
-                  width: 1.5,
-                ),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.15),
-                      shape: BoxShape.circle,
-                    ),
-                    child: const Icon(Icons.logout_rounded, color: Colors.red, size: 40),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Cerrar Sesión',
-                    style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    '¿Estás seguro de que deseas salir?',
-                    style: TextStyle(color: Colors.white70),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed: () => Navigator.pop(context, false),
-                          child: const Text('Cancelar', style: TextStyle(color: Colors.white)),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => Navigator.pop(context, true),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.red,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: const Text('Salir', style: TextStyle(fontWeight: FontWeight.bold)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    final shouldLogout = await ProfileLogoutDialog.show(context);
 
     if (shouldLogout == true) {
       await UserService.clearSession();
@@ -504,7 +437,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
             : Future.value([]),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator(color: Color(0xFFFFD700)));
+            return CustomShimmer.listCards(count: 5);
           }
 
           if (snapshot.hasError) {
@@ -750,124 +683,26 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
   }
 
   Widget _buildProfileHeader() {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A).withOpacity(0.6),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.1),
-              width: 1.5,
+    return ProfileHeaderCard(
+      name: _userName ?? 'Usuario',
+      email: _currentUser?['email'],
+      imageUrl: _currentUser?['url_imagen_perfil'],
+      rating: _rating,
+      totalRatings: _totalRatings,
+      onEditTap: () async {
+        if (_currentUser != null) {
+          final result = await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EditProfileScreen(user: _currentUser!),
             ),
-          ),
-          child: Column(
-            children: [
-              Stack(
-                children: [
-                  // Profile Image
-                  Container(
-                    width: 100,
-                    height: 100,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFFFFFF00).withOpacity(0.1),
-                      image: (_currentUser != null && 
-                              _currentUser!['url_imagen_perfil'] != null)
-                          ? DecorationImage(
-                              image: NetworkImage(
-                                AppConfig.resolveImageUrl(_currentUser!['url_imagen_perfil'])
-                              ),
-                              fit: BoxFit.cover,
-                            )
-                          : null,
-                    ),
-                    child: (_currentUser == null || _currentUser!['url_imagen_perfil'] == null)
-                        ? Center(
-                            child: Text(
-                              _userName != null && _userName!.isNotEmpty ? _userName![0].toUpperCase() : 'U',
-                              style: const TextStyle(
-                                color: Color(0xFFFFFF00),
-                                fontSize: 40,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          )
-                        : null,
-                  ),
-                  // Edit Button
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: GestureDetector(
-                      onTap: () async {
-                        if (_currentUser != null) {
-                           final result = await Navigator.push(
-                             context,
-                             MaterialPageRoute(
-                               builder: (context) => EditProfileScreen(user: _currentUser!),
-                             ),
-                           );
-                           if (result == true) {
-                             // Reload data if updated
-                             setState(() => _loading = true);
-                             _loadUserData();
-                           }
-                        }
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: const BoxDecoration(
-                          color: Color(0xFFFFFF00),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(Icons.edit, color: Colors.black, size: 16),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Text(
-                _userName ?? 'Usuario',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (_currentUser?['email'] != null)
-                Text(
-                  _currentUser!['email'],
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.6),
-                    fontSize: 14,
-                  ),
-                ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.star_rounded, color: Color(0xFFFFD700), size: 20),
-                  const SizedBox(width: 4),
-                  Text(
-                    _rating.toStringAsFixed(1),
-                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                  if (_totalRatings > 0)
-                    Text(
-                      ' ($_totalRatings)',
-                      style: TextStyle(color: Colors.white.withOpacity(0.6), fontSize: 14),
-                    ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
+          );
+          if (result == true) {
+            setState(() => _loading = true);
+            _loadUserData();
+          }
+        }
+      },
     );
   }
 
@@ -944,99 +779,24 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
     return Column(
       children: [
         _buildDynamicConductorButton(),
-        const SizedBox(height: 12),
-        _buildProfileMenuItem(
+        ProfileMenuItem(
           icon: Icons.settings,
           title: 'Configuración',
           onTap: () => CustomSnackbar.showInfo(context, message: 'Función en desarrollo'),
         ),
-        const SizedBox(height: 12),
-        _buildProfileMenuItem(
+        ProfileMenuItem(
           icon: Icons.help_outline,
           title: 'Ayuda y soporte',
           onTap: () => CustomSnackbar.showInfo(context, message: 'Función en desarrollo'),
         ),
         const SizedBox(height: 12),
-        _buildProfileMenuItem(
+        ProfileMenuItem(
           icon: Icons.logout,
           title: 'Cerrar sesión',
           isLogout: true,
           onTap: () => _handleLogout(),
         ),
       ],
-    );
-  }
-
-  Widget _buildProfileMenuItem({
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-    bool isLogout = false,
-    Color? customColor,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: isLogout 
-                  ? Colors.red.withOpacity(0.1) 
-                  : const Color(0xFF1A1A1A).withOpacity(0.6),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isLogout 
-                    ? Colors.red.withOpacity(0.3)
-                    : Colors.white.withOpacity(0.1),
-                width: 1.5,
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isLogout
-                        ? Colors.red.withOpacity(0.2)
-                        : (customColor?.withOpacity(0.2) ?? const Color(0xFFFFFF00).withOpacity(0.2)),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    icon, 
-                    color: isLogout 
-                        ? Colors.red 
-                        : (customColor ?? const Color(0xFFFFFF00)), 
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: isLogout 
-                          ? Colors.red 
-                          : (customColor ?? Colors.white),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Icon(
-                  Icons.arrow_forward_ios, 
-                  color: isLogout 
-                      ? Colors.red.withOpacity(0.5)
-                      : (customColor?.withOpacity(0.5) ?? Colors.white.withOpacity(0.3)), 
-                  size: 18,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -1744,7 +1504,7 @@ class _HomeUserScreenState extends State<HomeUserScreen> with TickerProviderStat
       colorOverride = Colors.red;
     }
 
-    return _buildProfileMenuItem(
+    return ProfileMenuItem(
       icon: icon,
       title: title,
       onTap: _handleBeDriverTap,

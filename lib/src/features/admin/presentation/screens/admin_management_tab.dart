@@ -1,28 +1,28 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:ping_go/src/routes/route_names.dart';
+import 'package:ping_go/src/global/services/admin/admin_service.dart';
 
 class AdminManagementTab extends StatefulWidget {
   final Map<String, dynamic> adminUser;
 
-  const AdminManagementTab({
-    super.key,
-    required this.adminUser,
-  });
+  const AdminManagementTab({super.key, required this.adminUser});
 
   @override
   State<AdminManagementTab> createState() => _AdminManagementTabState();
 }
 
-class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticKeepAliveClientMixin {
+class _AdminManagementTabState extends State<AdminManagementTab>
+    with AutomaticKeepAliveClientMixin {
   @override
   bool get wantKeepAlive => true;
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    
-    final adminId = int.tryParse(widget.adminUser['id']?.toString() ?? '0') ?? 0;
+
+    final adminId =
+        int.tryParse(widget.adminUser['id']?.toString() ?? '0') ?? 0;
 
     return SingleChildScrollView(
       physics: const BouncingScrollPhysics(),
@@ -61,7 +61,10 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
                   Navigator.pushNamed(
                     context,
                     RouteNames.adminUsers,
-                    arguments: {'admin_id': adminId, 'admin_user': widget.adminUser},
+                    arguments: {
+                      'admin_id': adminId,
+                      'admin_user': widget.adminUser,
+                    },
                   );
                 },
               ),
@@ -102,7 +105,10 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
                 icon: Icons.folder_shared_rounded,
                 accentColor: const Color(0xFFFFFF00),
                 onTap: () {
-                  Navigator.pushNamed(context, RouteNames.adminConductorDocuments);
+                  Navigator.pushNamed(
+                    context,
+                    RouteNames.adminConductorDocuments,
+                  );
                 },
               ),
             ],
@@ -120,6 +126,13 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
                   Navigator.pushNamed(context, RouteNames.adminRates);
                 },
               ),
+              _ManagementItem(
+                title: 'Configuración de Cuenta',
+                subtitle: 'Cuenta bancaria y tope de comisión',
+                icon: Icons.account_balance_rounded,
+                accentColor: const Color(0xFF2196F3),
+                onTap: () => _showAccountConfigDialog(adminId),
+              ),
             ],
           ),
           const SizedBox(height: 20),
@@ -128,7 +141,10 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
     );
   }
 
-  Widget _buildSection({required String title, required List<_ManagementItem> items}) {
+  Widget _buildSection({
+    required String title,
+    required List<_ManagementItem> items,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -144,10 +160,12 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
             ),
           ),
         ),
-        ...items.map((item) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildManagementCard(item),
-        )),
+        ...items.map(
+          (item) => Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildManagementCard(item),
+          ),
+        ),
       ],
     );
   }
@@ -189,7 +207,11 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
                             width: 1,
                           ),
                         ),
-                        child: Icon(item.icon, color: item.accentColor, size: 28),
+                        child: Icon(
+                          item.icon,
+                          color: item.accentColor,
+                          size: 28,
+                        ),
                       ),
                       const SizedBox(width: 16),
                       Expanded(
@@ -248,6 +270,165 @@ class _AdminManagementTabState extends State<AdminManagementTab> with AutomaticK
         backgroundColor: const Color(0xFF1A1A1A),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _showAccountConfigDialog(int adminId) async {
+    if (adminId <= 0) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No se pudo validar el administrador')),
+        );
+      }
+      return;
+    }
+
+    // Fetch current config
+    final configResult = await AdminService.getAppConfig(adminId: adminId);
+    String cuentaApp = '';
+    String topeComision = '20000';
+
+    if (configResult['success'] == true) {
+      final data = configResult['data'];
+      final configMap = data is Map<String, dynamic>
+          ? (data['config'] as Map<String, dynamic>? ?? {})
+          : <String, dynamic>{};
+      final detailedConfigs = data is Map<String, dynamic>
+          ? (data['config_detallada'] as List<dynamic>? ?? const [])
+          : const <dynamic>[];
+
+      if (configMap.isNotEmpty) {
+        cuentaApp = configMap['cuenta_app']?.toString() ?? '';
+        topeComision = configMap['tope_comision']?.toString() ?? '20000';
+      } else {
+        for (final c in detailedConfigs) {
+          if (c is! Map) continue;
+          if (c['clave'] == 'cuenta_app') {
+            cuentaApp = c['valor']?.toString() ?? '';
+          }
+          if (c['clave'] == 'tope_comision') {
+            topeComision = c['valor']?.toString() ?? '20000';
+          }
+        }
+      }
+    }
+
+    final cuentaCtrl = TextEditingController(text: cuentaApp);
+    final topeCtrl = TextEditingController(text: topeComision);
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(
+              Icons.account_balance_rounded,
+              color: Color(0xFF2196F3),
+              size: 24,
+            ),
+            SizedBox(width: 8),
+            Text(
+              'Configuración de Cuenta',
+              style: TextStyle(color: Colors.white, fontSize: 18),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: cuentaCtrl,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Número de Cuenta Bancaria',
+                labelStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Color(0xFF2196F3)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: topeCtrl,
+              keyboardType: TextInputType.number,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                labelText: 'Tope de Comisión (COP)',
+                labelStyle: TextStyle(color: Colors.white.withOpacity(0.6)),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: const BorderSide(color: Color(0xFF2196F3)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: Colors.white54),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2196F3),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              // Save both configs
+              await AdminService.updateAppConfig(
+                adminId: adminId,
+                clave: 'cuenta_app',
+                valor: cuentaCtrl.text.trim(),
+                tipo: 'string',
+                categoria: 'comisiones',
+                descripcion: 'Número de cuenta bancaria de la app',
+                esPublica: false,
+              );
+              await AdminService.updateAppConfig(
+                adminId: adminId,
+                clave: 'tope_comision',
+                valor: topeCtrl.text.trim(),
+                tipo: 'number',
+                categoria: 'comisiones',
+                descripcion: 'Tope máximo de comisión (COP)',
+                esPublica: true,
+              );
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: const Text('Configuración guardada'),
+                    backgroundColor: const Color(0xFF4CAF50),
+                    behavior: SnackBarBehavior.floating,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                );
+              }
+            },
+            child: const Text('Guardar'),
+          ),
+        ],
       ),
     );
   }
